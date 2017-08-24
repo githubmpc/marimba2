@@ -1,33 +1,58 @@
 #' Simulating copy number for a collection of trios.
-#' 
-#' This function allows you to simulate copy number for a dataset of trios. This can be used as input for the gibbsSamplerMendelian function.
-#' @param n The number of trios.
-#' @param p A vector representing the probabilities of each copy number state.
-#' @param theta A vector representing the mean LRR of each copy number state.
-#' @param sigma A vector representing the average LRR variance for each copy number state.
-#' @keywords marimba
+#' @param N number of trios to simulate
+#' @param error probability of non-Mendelian event in offspring
+#' @param params A dataframe of the parameters of pi, thetas and sigmas.
+#' @keywords marimba2
 #' @return A collection of trios with their copy number genotypes. 
-#' @examples
-#' data.1 <- simulate_data(66, p = p.1000gp, theta = theta.1000gp, sigma = sigma.1000gp)
-#' saveRDS(data.1, "simulatedData.rds")
+#' @export
 
-cn.simulate.data <- function(n, p, theta, sigma){
-  # set seed so we get the same results for given parameter values
-  set.seed(668899)
+.simulate_data <- function(params, n, mendelian.probs){
+  p <- params$p
+  theta <- params$theta
+  sigma <- params$sigma
   c_m <- sample(1:3, size = n, replace = TRUE, prob = p)
   c_f <- sample(1:3, size = n, replace = TRUE, prob = p)
-  c_o <- rep(0, length = n)
+  c_o <- rep(NA, length = n)
   for(i in 1:n){
     cn_m <- c_m[i]
-    cn_f <- c_f[i] 
-    p.offspring <- mendelian.probs[,cn_m, cn_f]
+    cn_f <- c_f[i]
+    p.offspring <- mendelian.probs[, cn_m, cn_f]
     c_o[i] <- sample(1:3, size = 1, prob = p.offspring)
   }
-  y_m <- rnorm(n, mean = theta[c_m], sd = sigma[c_m])
-  y_f <- rnorm(n, mean = theta[c_f], sd = sigma[c_f])
-  y_o <- rnorm(n, mean = theta[c_o], sd = sigma[c_o])
-  
-  y.mat <- cbind(cbind(y_m, y_f), y_o)
-  cn.mat <- cbind(cbind(c_m, c_f), c_o)
-  return(list(response = y.mat, cn = cn.mat))
+  id.index <- formatC(seq_len(n), flag="0", width=3)
+  logr.tbl <- tibble(m=rnorm(n, mean = theta[c_m], sd = sigma[c_m]),
+                     f=rnorm(n, mean = theta[c_f], sd = sigma[c_f]),
+                     o=rnorm(n, mean = theta[c_o], sd = sigma[c_o]),
+                     id=factor(paste0("trio_", id.index))) %>%
+    gather(key="family_member", value="log_ratio", -id) 
+  cn.mat <- cbind(c_m, c_f, c_o)
+  colnames(cn.mat) <- c("m", "f", "o")
+  cn.mat <- cn.mat - 1
+  cn.tbl <- as.tibble(cn.mat) %>%
+    mutate(id=factor(paste0("trio_", id.index))) %>%
+    gather(key="family_member", value="copy_number", -id)
+  tbl <- left_join(logr.tbl, cn.tbl, by=c("id", "family_member")) %>%
+    mutate(family_member=factor(family_member, levels=c("f", "m", "o"))) %>%
+    arrange(id, family_member)
+  tbl
+}
+
+simulate_data <- function(params, N, error=0){
+  mendelian.probs <- gMendelian()
+  tbl <- .simulate_data(params, N, mendelian.probs)
+  ## standardize
+  tbl <- tbl %>%
+    mutate(log_ratio=(log_ratio-median(log_ratio))/sd(log_ratio))
+  z <- tbl$copy_number + 1
+  ##
+  ## update parameters to be same as empirical values
+  ##
+  stats <- component_stats(tbl)
+  params$p <- stats$n/sum(stats$n)
+  params$sigma <- stats$sd
+  params$theta <- stats$mean
+  loglik <- sum(dnorm(tbl$log_ratio, params$theta[z],
+                      params$sigma[z], log=TRUE))
+  truth <- list(data=tbl, params=params, loglik=loglik)
+  truth
 }
