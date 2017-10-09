@@ -28,14 +28,17 @@ initialize_chains <- function(states, N, K, S) {
   tau <- matrix(0, S, K)
   logll <- rep(0, S)
   p <- matrix(0, nrow = S, ncol = K)
+  pi.child <- matrix(0, nrow = S, ncol = K)
   colnames(p) <- states
+  colnames(pi.child) <- states
   colnames(tau) <- colnames(sigma) <- colnames(theta) <- states
   list(z=z,
        theta=theta,
        sigma=sigma,
        logll=logll,
        tau=tau,
-       p=p)
+       p=p,
+       pi.child=pi.child)
 }
 
 gMendelian <- function(tau=c(1, 0.5, 0), err=1e-4){
@@ -118,55 +121,9 @@ cnProb <- function(current, tbl, p){
   cn.prob
 }
 
-multi_K <- function(dat, params){
-  K <- 3
-  params$K <- K
-  y.mf.k3 <- initialize_gmodel_setup(dat, params)
-  
-  # k2a has cn components 0,1
-  # k2b has cn components 1,2
-  K <- 2
-  params$K <- K
-  y.mf.k2a <- initialize_gmodel_setup(dat, params)
-  y.mf.k2b <- initialize_gmodel_setup.alt(dat, params)
-  
-  #k1a has cn component 1
-  #k1b has cn component 2
-  K <- 1
-  params$K <- K
-  y.mf.k1a <- initialize_gmodel_setup.alt(dat, params)
-  y.mf.k1b <- initialize_gmodel_setup.alt2(dat, params)
-  return(list(y.mf.k3=y.mf.k3,
-        y.mf.k2a=y.mf.k2a,
-        y.mf.k2b=y.mf.k2b,
-        y.mf.k1a=y.mf.k1a,
-        y.mf.k1b=y.mf.k1b))
-}
-
-initialize_gmodel_setup <- function(dat, params){
-  K <- params$K
-  N <- params$N
-  y.mf <- kmean_clusters(dat[, c("m", "f")], params)
-}
-
-initialize_gmodel_setup.alt <- function(dat, params){
-  K <- params$K
-  N <- params$N
-  y.mf <- kmean_clusters(dat[, c("m", "f")], params)
-  y.mf <- kmean_clusters.add(y.mf)
-}
-
-initialize_gmodel_setup.alt2 <- function(dat, params){
-  K <- params$K
-  N <- params$N
-  y.mf <- kmean_clusters(dat[, c("m", "f")], params)
-  y.mf <- kmean_clusters.add(y.mf)
-  y.mf <- kmean_clusters.add(y.mf)
-}
-
-
+# this function initialises and contains the mendelian transmission probabilities
 .init <- function(data, K, tau, e){
-  extdata <- system.file("extdata", package="marimba")
+  extdata <- system.file("extdata", package="marimba2")
   mprob <- readRDS(file.path(extdata, "mendelian_probs.rds"))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
@@ -180,10 +137,12 @@ initialize_gmodel_setup.alt2 <- function(dat, params){
   theta <- mmod$parameters$mean
   sigma <- sqrt(mmod$parameters$variance$sigmasq)
   p <- mmod$parameters$pro
+  pi.child <- p
   current <- list(data=data,
                   theta=theta,
                   sigma=sigma,
                   p=p,
+                  pi.child = pi.child,
                   tau=tau,
                   mprob=mprob)
   current$logll <- compute_loglik(current)
@@ -196,8 +155,9 @@ initialize_gmodel_setup.alt2 <- function(dat, params){
   logsigma <- rnorm(K, log(0.3), 1)
   sigma <- exp(logsigma)
   p <- rdirichlet(1, gp$a)
+  pi.child <- rdirichlet(1, gp$a)
   e <- gp$error
-  extdata <- system.file("extdata", package="marimba")
+  extdata <- system.file("extdata", package="marimba2")
   mprob <- readRDS(file.path(extdata, "mendelian_probs.rds"))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
@@ -207,10 +167,13 @@ initialize_gmodel_setup.alt2 <- function(dat, params){
   current <- list(theta=theta,
                   sigma=sigma,
                   p=p,
+                  pi.child = pi.child,
                   mprob=mprob,
                   tau=c(1, 0.5, 0))
 }
 
+# different between gmodel and gmodel2 is in current - first includes data, second is parameters only
+# variable model in function calls usually refers to gmodel
 
 gmodel2 <- function(data,
                     mp=mcmcParams(),
@@ -240,7 +203,6 @@ gmodel <- function(data,
        gp=gp)
 }
 
-
 initialize_gmodel <- function(dat, params, comp=1){
   y.mf <- multi_K(dat, params)
   y.mf <- y.mf[[comp]]
@@ -260,15 +222,17 @@ initialize_gmodel <- function(dat, params, comp=1){
   a <- params$a
   d <- length(table(y.mf$cn))
   a <- a[1:d]
-  eta1 <- params$eta1
-  eta2 <- params$eta2
   pi <- rdirichlet(1, Ns+a)[1, ]
   names(pi) <- names(theta)
-  tau <- rbeta(1, eta1, eta2)
-  ## MC: why do you simulate tau, but pass a different tau to gMendelian?
+  
+  # update when making it for alternative types of models
+  #eta1 <- params$eta1
+  #eta2 <- params$eta2
+  # tau <- rbeta(1, eta1, eta2)
+  
   ## create initial mendelian matrix
-  mendelian.probs <- gMendelian(tau.one=params$tau.one, tau.two=params$tau.two,
-                                tau.three=params$tau.three, err=params$error)
+  mendelian.probs <- gMendelian()
+  
   ## Draw for offspring
   p.o <- p_offspring(cn.mf, mendelian.probs, theta)
 
@@ -445,7 +409,7 @@ replaceIfMissing <- function(cn.states, expected=as.character(c(0, 1, 2))){
 }
 
 balance_cn <- function(stats, current){
-  index <- which(stats$n < 2)
+  index <- which(stats$n < 3)
   if(nrow(stats) != 3){
     stats <- tibble(copy_number=0:2)  %>%
       left_join(stats, by="copy_number")
@@ -459,10 +423,10 @@ balance_cn <- function(stats, current){
   ## we need at least 2 observations to compute a standard deviation
   ## - re-assign the 2 most probable observations 
   ##
-  for(i in index){
+  for(i in c(index)){
     d <- dnorm(lr, theta, sigma, log=TRUE)
     p <- d/sum(d)
-    ix <- order(p, decreasing=TRUE)[1:2]
+    ix <- order(p, decreasing=TRUE)[1:3]
     tbl$z[ix] <- i
   }
   tbl$copy_number <- tbl$z - 1
@@ -491,6 +455,12 @@ component_stats <- function(tbl){
 parent_stats <- function(tbl){
   tbl %>%
     filter(family_member %in% c("f", "m")) %>%
+    component_stats
+}
+
+child_stats <- function(tbl){
+  tbl %>%
+    filter(family_member %in% c("o")) %>%
     component_stats
 }
 
@@ -567,6 +537,7 @@ gmodel_oneiter <- function(model){
   tbl <- current$data
   N <- nrow(tbl)
   p <- current$p
+  pi.child <- current$pi.child
   theta <- current$theta
   sigma <- current$sigma
   ##
@@ -577,7 +548,7 @@ gmodel_oneiter <- function(model){
   ## update theta
   ##
   stats <- component_stats(current$data)
-  if(any(stats$n < 2) | nrow(stats) < 3){
+  if(any(stats$n < 3) | nrow(stats) < 3){
     current$data <- balance_cn(stats, current)
     stats <- component_stats(current$data)
   }
@@ -612,6 +583,11 @@ gmodel_oneiter <- function(model){
     parents <- parents2
   }
   current$p <- update_p(parents$n, gp)
+  
+  # update child stats
+  offspring <- child_stats(current$data)
+  current$pi.child <- offspring$n / (sum(offspring$n))
+  
   ##
   ## update transmission matrix
   ## TODO: update_tau
@@ -753,6 +729,7 @@ update_chains <- function(model, i){
   chains$theta[i, ] <- current$theta
   chains$sigma[i, ] <- current$sigma
   chains$p[i, ] <- current$p
+  chains$pi.child[i, ] <- current$pi.child
   chains$tau[i, ] <- current$tau
   chains$logll[i] <- current$logll
   chains$z <- zchain
@@ -806,58 +783,94 @@ gibbs_genetic <- function(model){
   model
 }
 
-gibbs.cnv.wrapper <- function(N, K, iter, thin, burnin, y=y, xi, ncp, model){
-  gparams <- geneticParams(N=N, K=K,
-                           iter=iter,
-                           thin=thin,
-                           burnin=burnin, xi=xi,
-                           ncp=ncp,
-                           model=model)
-  gmodel.k3 <- initialize_gmodel(y, gparams, 1)
+# new wrapper function
+# no need for this, see functions below
+gibbs.cnv.call <- function(K, states, tau, xi, mu, nu, sigma2.0, a, eta, error, ncp, model, dat){
+  gparams <- geneticParams(K=K, states = states,
+                           tau = tau,
+                           xi = xi,
+                           mu = mu, nu = nu,
+                           sigma2.0 = sigma2.0, a = a,
+                           eta = eta, error = error,
+                           ncp = ncp, model = model)
+  
+  gmodel <- gmodel(dat$data)
+  gmodel.fit <- gibbs_genetic(gmodel)
+  gmodel.map <- map_cn2(gmodel.fit)
+  gmodel.stats <- model.compare(gmodel.fit)
+  
+  return(list(
+    theta = gmodel.fit$chains$theta,
+    sigma = gmodel.fit$chains$sigma,
+    mixture.probs = gmodel.fit$chains$p,
+    tau = gmodel.fit$chains$tau,
+    cn.ind = gmodel.map,
+    #cn.ind = gmodel.map$cn,
+    cn.state.prob = gmodel.map$prob,
+    logll = gmodel.fit$chains$logll,
+    BIC = gmodel.stats[1],
+    DIC = gmodel.stats[2]
+  ))
+}
+
+ ##################
+    # old wrapper function 
+  # deprecated 
+  #######################
+    
+# gibbs.cnv.wrapper <- function(K, states, tau, xi, mu, nu, sigma2.0, a, eta, error, ncp, model, y=y){
+  # gparams <- geneticParams(K=K, states = states,
+  #                         tau = tau,
+   #                        xi = xi,
+    #                       mu = mu, nu = nu,
+     #                      sigma2.0 = sigma2.0, a = a,
+      #                     eta = eta, error = error,
+       #                    ncp = ncp, model = model)
+ ## gmodel.k3 <- initialize_gmodel(y, gparams, 1)
   #gmodel.k2a <- initialize_gmodel(y, gparams, 2)
   #gmodel.k2b <- initialize_gmodel(y, gparams, 3)
   #gmodel.k1a <- initialize_gmodel(y, gparams, 4)
   #gmodel.k1b <- initialize_gmodel(y, gparams, 5)
   
-  fit.k3 <- gibbs_genetic(gmodel.k3, gparams)
+  ## fit.k3 <- gibbs_genetic(gmodel.k3, gparams)
   #fit.k2a <- gibbs_genetic(gmodel.k2a, gparams)
   #fit.k2b <- gibbs_genetic(gmodel.k2b, gparams)
   #fit.k1a <- gibbs_genetic(gmodel.k1a, gparams)
   #fit.k1b <- gibbs_genetic(gmodel.k1b, gparams)
   
-  fit.chains.k3 <- fit.k3$chains$C
+ ## fit.chains.k3 <- fit.k3$chains$C
   #fit.chains.k2a <- fit.k2a$chains$C
   #fit.chains.k2b <- fit.k2b$chains$C
   #fit.chains.k1a <- fit.k1a$chains$C
   #fit.chains.k1b <- fit.k1b$chains$C
   
-  cn.stats.k3 <- map_cn(gmodel.k3, fit.chains.k3, gparams)
+ ## cn.stats.k3 <- map_cn(gmodel.k3, fit.chains.k3, gparams)
   #cn.stats.k2a <- map_cn(gmodel.k2a, ch, gparams)
   #cn.stats.k2b <- map_cn(gmodel.k2b, ch, gparams)
   #cn.stats.k1a <- map_cn(gmodel.k1a, ch, gparams)
   #cn.stats.k1b <- map_cn(gmodel.k1b, ch, gparams)
   
-  model.metrics <- model.comparison(fit.k3)
+ ## model.metrics <- model.comparison(fit.k3)
   
-  return(list(post.thetas = fit.k3$chains$theta,
-              post.sigmas = fit.k3$chains$sigma,
-              post.pi = fit.k3$chains$pi,
-              taus = fit.k3$chains$tau,
-              post.cn0 = fit.k3$chains$C$C0,
-              post.cn1 = fit.k3$chains$C$C1,
-              post.cn2 = fit.k3$chains$C$C2,
-              trio.cn = cn.stats.k3$cn,
-              trio.cn.probs = cn.stats.k3$prob,
-              logll = fit.k3$chains$logll,
-              model.BIC = model.metrics[1],
-              model.DIC = model.metrics[2])
-         )
-}
+ # return(list(post.thetas = fit.k3$chains$theta,
+  #            post.sigmas = fit.k3$chains$sigma,
+   #           post.pi = fit.k3$chains$pi,
+    #          taus = fit.k3$chains$tau,
+     #         post.cn0 = fit.k3$chains$C$C0,
+      #        post.cn1 = fit.k3$chains$C$C1,
+       #       post.cn2 = fit.k3$chains$C$C2,
+        #      trio.cn = cn.stats.k3$cn,
+         #     trio.cn.probs = cn.stats.k3$prob,
+          #    logll = fit.k3$chains$logll,
+           #   model.BIC = model.metrics[1],
+            #  model.DIC = model.metrics[2])
+         #)
+# }
 
 # model comparison metrixs
 # calculation of BIC and DIC
 
-model.comparison <- function (fit.model) {
+model.compare <- function (fit.model) {
   BIC <- calc.BIC(fit.model)
   DIC <- calc.DIC(fit.model)
   list = c(model.BIC = BIC,
@@ -865,8 +878,9 @@ model.comparison <- function (fit.model) {
 }
 
 calc.BIC <- function (fit.model) {
-  n.sample <- length(fit.model$gmodel$y)
-  npar <- length(fit.model$chains)
+  n.sample <- length(fit.model$current$data$z)
+  # what is npar free parameters
+  npar <- length(fit.model$chains$logll)
   logll <- fit.model$chains$logll
   bic.calc <- log(n.sample)*npar - 2*logll
   bic.calc <- mean(bic.calc)
@@ -1007,8 +1021,6 @@ gg_inten.comparison2 <- function (sim.truth, gibbs.cnv, params) {
 ##        CN 0, 1, 2 respectively 
 ##   sigma -- a vector of length three giving the distribution SDs for
 ##        CN 0, 1, 2 respectively 
-
-
 
 statistics_1000g <- function(region){
   path <- system.file("extdata", package="marimba")
@@ -1157,9 +1169,12 @@ gg_chains <- function(model, expected){
                sigma0=chains$sigma[, 1],
                sigma1=chains$sigma[, 2],
                sigma2=chains$sigma[, 3],
-               p0=chains$p[, 1],
-               p1=chains$p[, 2],
-               p2=chains$p[, 3],
+               pi0=chains$p[, 1],
+               pi1=chains$p[, 2],
+               pi2=chains$p[, 3],
+               # pi.child0=gibbs.cnv$post.pi.child[, 1],
+               # pi.child1=gibbs.cnv$post.pi.child[, 2],
+               # pi.child2=gibbs.cnv$post.pi.child[, 3],
                loglik=chains$logll,
                iter=seq_len(L))
   tbl2 <- gather(tbl, key=parameter, value=monte_carlo, -iter)
@@ -1167,7 +1182,7 @@ gg_chains <- function(model, expected){
     eparams <- expected$params
     expect <- tibble(parameter=c(paste0("theta", 0:2),
                                  paste0("sigma", 0:2),
-                                 paste0("p", 0:2),
+                                 paste0("pi", 0:2),
                                  "loglik"),
                      truth=c(eparams$theta,
                              eparams$sigma,
@@ -1184,34 +1199,6 @@ gg_chains <- function(model, expected){
   p
 }
 
-map_cn <- function(gmodel, ch, params){
-  S<-params$iter
-  K <- length(gmodel$theta)
-  
-  pr.list<-list()
-  
-  for (k in 1:K){
-    c <- ch[[k]]/S
-    pr.list[[length(pr.list)+1]]<-c
-    names(pr.list)[k]<-attributes(gmodel$pi)$names[k]
-  }
-  
-  m <- do.call(cbind, lapply(pr.list, "[", , "m"))
-  f <- do.call(cbind, lapply(pr.list, "[", , "f"))
-  o <- do.call(cbind, lapply(pr.list, "[", , "o"))
-  cn.f <- apply(f, 1, which.max) - 1
-  cn.m <- apply(m, 1, which.max) - 1
-  cn.o <- apply(o, 1, which.max) - 1
-  
-  probs <- cbind(rowMaxs(m),
-                 rowMaxs(f),
-                 rowMaxs(o))
-  
-  cn <- cbind(cn.m, cn.f, cn.o)
-  colnames(probs) <- colnames(cn) <- c("m", "f", "o")
-  list(prob=probs,
-       cn=cn)
-}
 
 #' Return maximum a posterior copy number from a model
 #'
@@ -1222,6 +1209,8 @@ map_cn2 <- function(model){
   iter <- model$mp$iter + 1
   prob <- freq/iter
   max.col(prob) - 1
+  #list(prob = prob,
+   #    cn = cn)
 }
 
 
@@ -1488,8 +1477,30 @@ gibbs_genetic2 <- function(starts, chains, dat, gp, mp){
                 mp=mp,
                 current=starts,
                 chains=chains)
-  model <- label_switch(gibbs_genetic(model))
+  model <- gibbs_genetic(model)
+  model <- label_switch(model)
   model
+}
+
+gelman_rubin <- function(mcmc_list, gp){
+  #anyNA <- function(x){
+  #  any(is.na(x))
+ # }
+ # any_nas <- map_lgl(mcmc_list, anyNA)
+ # mcmc_list <- mcmc_list[ !any_nas ]
+  if(length(mcmc_list) < 2 ) stop("Need at least two MCMC chains")
+  r <- tryCatch(gelman.diag(mcmc_list, autoburnin=FALSE), error=function(e) NULL)
+  if(is.null(r)){
+    ## gelman rubin can fail if p is not positive definite
+    pcolumn <- match(paste0("p", gp$K-1), colnames(mcmc_list[[1]]))
+    f <- function(x, pcolumn){
+      x[, -pcolumn]
+    }
+    mcmc_list <- map(mcmc_list, f, pcolumn) %>%
+      as.mcmc.list
+    r <- gelman.diag(mcmc_list, autoburnin=FALSE)
+  }
+  r
 }
 
 gibbs <- function(mp, gp, dat){
@@ -1506,10 +1517,13 @@ gibbs <- function(mp, gp, dat){
     model.list2 <- model.list[ keep ]
     mlist <- mcmcList(model.list2)
     neff <- effectiveSize(mlist)
-    ## last column of p-matrix is not needed since p's constrained to sum to 1
-    last_col <- ncol(mlist[[1]])
-    mlist <- mlist[, -last_col]
-    r <- gelman.diag(mlist)
+    
+    # still throwing an error when removing last column, switch to removing as necessary as similar in CNPBayes
+    ### last column of p-matrix is not needed since p's constrained to sum to 1
+    #last_col <- ncol(mlist[[1]])
+    #mlist <- mlist[, -last_col]
+    r <- gelman_rubin(mlist, gp)
+    # r <- gelman.diag(mlist)
     message("   r: ", r$mpsrf)
     if(r$mpsrf < 2 && all(neff > 500)) break()
     mp$burnin <- mp$burnin*2
@@ -1536,7 +1550,7 @@ selectModels <- function(model.list){
 diagnostics <- function(model.list){
   mlist <- mcmcList(model.list)
   neff <- effectiveSize(mlist)
-  r <- gelman.diag(mlist[, -9])  
+  r <- gelman_rubin(mlist, gp)  
   list(neff=neff, r=r)
 }
 
@@ -1562,3 +1576,122 @@ unlistModels <- function(model.list){
                 chains=chains)
   model
 }
+
+
+# function to check if the real parameter is captured in the credible interval of the posterior chains
+credible.interval <- function (gibbs.model, gibbs.result, real.params) {
+  
+  ci.mat <- matrix(0, ncol=nrow(real.params)*(ncol(real.params)+1), nrow=1)
+  mixture.ci.parents <- data.frame(HPDinterval(mcmc(gibbs.model$post.pi), 0.95))
+  mixture.ci.offspring <- data.frame(HPDinterval(mcmc(gibbs.model$post.pi.child), 0.95))
+  theta.ci <- data.frame(HPDinterval(mcmc(gibbs.model$post.thetas), 0.95))
+  sigma.ci <- data.frame(HPDinterval(mcmc(gibbs.model$post.sigmas), 0.95))
+  
+  #w <- real.params[,1]
+  #x <- real.params[,1]
+  #y <- real.params[,2]
+  #z <- real.params[,3]
+  
+  w <- gibbs.result$mixture.prob.tb2$empirical.parents
+  x <- gibbs.result$mixture.prob.tb2$empirical.offspring
+  y <- gibbs.result$mixture.prob.tb2$empirical.thetas
+  z <- (gibbs.result$mixture.prob.tb2$empirical.sigmas)#^0.5
+  
+  mix.parents.hit <- mixture.ci.parents %>%
+    filter(lower<=w, w<=upper)
+  mix.par <- mixture.ci.parents[,1] %in% mix.parents.hit[,1]
+  
+  mix.offspring.hit <- mixture.ci.offspring %>%
+    filter(lower<=x, x<=upper)
+  mix.off <- mixture.ci.offspring[,1] %in% mix.offspring.hit[,1]
+  
+  theta.hit <- theta.ci %>%
+    filter(lower<=y, y<=upper)
+  theta <- theta.ci[,1] %in% theta.hit[,1]
+  
+  sigma.hit <- sigma.ci %>%
+    filter(lower<=z, z<=upper)
+  sigma <- sigma.ci[,1] %in% sigma.hit[,1]
+  
+  col <- nrow(real.params)  
+  ci.mat[1,1:col] <- mix.par
+  ci.mat[1,(col+1) : (2*col)] <- mix.off
+  ci.mat[1,(2*col+1) : (3*col)] <- theta
+  ci.mat[1,(3*col+1) : (4*col)] <- sigma
+  
+  return (ci.mat)
+}
+
+credible.interval.quantile <- function (gibbs.model, gibbs.result, real.params) {
+  
+  ci.mat <- matrix(0, ncol=nrow(real.params)*(ncol(real.params)+1), nrow=1)
+  mixture.ci.parents <- apply(gibbs.model$post.pi, 2, quantile, probs = c(0.025, 0.975))
+  mixture.ci.offspring <- apply(gibbs.model$post.pi.child, 2, quantile, probs = c(0.025, 0.975))
+  theta.ci <- apply(gibbs.model$post.thetas, 2, quantile, probs = c(0.025, 0.975))
+  sigma.ci <- apply(gibbs.model$post.sigmas, 2, quantile, probs = c(0.025, 0.975))
+  
+  # reshape
+  mixture.ci.parents <- data.frame(t(mixture.ci.parents))
+  colnames(mixture.ci.parents) <- c("lower", "upper")
+  mixture.ci.offspring <- data.frame(t(mixture.ci.offspring))
+  colnames(mixture.ci.offspring) <- c("lower", "upper")
+  theta.ci <- data.frame(t(theta.ci))
+  colnames(theta.ci) <- c("lower", "upper")
+  sigma.ci <- data.frame(t(sigma.ci))
+  colnames(sigma.ci) <- c("lower", "upper")
+  
+  w <- gibbs.result$mixture.prob.tb2$empirical.parents
+  x <- gibbs.result$mixture.prob.tb2$empirical.offspring
+  y <- gibbs.result$mixture.prob.tb2$empirical.thetas
+  z <- (gibbs.result$mixture.prob.tb2$empirical.sigmas)#^0.5
+  
+  mix.parents.hit <- mixture.ci.parents %>%
+    filter(lower<=w, w<=upper)
+  mix.par <- mixture.ci.parents[,1] %in% mix.parents.hit[,1]
+  
+  mix.offspring.hit <- mixture.ci.offspring %>%
+    filter(lower<=x, x<=upper)
+  mix.off <- mixture.ci.offspring[,1] %in% mix.offspring.hit[,1]
+  
+  theta.hit <- theta.ci %>%
+    filter(lower<=y, y<=upper)
+  theta <- theta.ci[,1] %in% theta.hit[,1]
+  
+  sigma.hit <- sigma.ci %>%
+    filter(lower<=z, z<=upper)
+  sigma <- sigma.ci[,1] %in% sigma.hit[,1]
+  
+  col <- nrow(real.params)  
+  ci.mat[1,1:col] <- mix.par
+  ci.mat[1,(col+1) : (2*col)] <- mix.off
+  ci.mat[1,(2*col+1) : (3*col)] <- theta
+  ci.mat[1,(3*col+1) : (4*col)] <- sigma
+  
+  return (ci.mat)
+}
+
+init.pi.child <- function(dat.y, cn.mf, params, theta){
+  N.half <- params$N / 2
+  yy <- as.numeric(dat.y[, c("o")])
+  cn.mf.mat <- as.matrix(cn.mf)
+  cn.mf.mat <- cn.mf.mat[1:N.half,]
+  cn <- as.numeric(cn.mf.mat[, 1:2])
+  tab <- tapply(yy, cn, length)
+  freq <- setNames(rep(0L, length(theta)),
+                   attributes(tab)$dimnames[[1]])
+  freq[names(tab)] <- tab
+  freq <- freq / params$N
+}
+
+ess.compile <- function(gibbs.result, real.params){
+  ess.mat <- matrix(0, ncol=nrow(real.params)*(ncol(real.params)+1), nrow=1)
+  
+  col <- nrow(real.params)  
+  ess.mat[1,1:col] <- gibbs.result$effective.size.pi
+  ess.mat[1,(col+1) : (2*col)] <- gibbs.result$effective.size.pi.child
+  ess.mat[1,(2*col+1) : (3*col)] <- gibbs.result$effective.size.thetas
+  ess.mat[1,(3*col+1) : (4*col)] <- gibbs.result$effective.size.sigmas
+  
+  return(ess.mat)
+}
+
