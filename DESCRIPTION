@@ -1,9 +1,9 @@
-Package: marimba
+Package: marimba2
 Type: Package
 Title: Gibbs sampler for genotyping CNPs
-Version: 0.0.4
+Version: 0.0.5
 Description: Genotypes copy number polymorphisms using a Gibbs sampler. Parameters incorporates for information across samples and within families.
-Author: Jacob Fiksel, Michael Chou, Stephen Cristiano, Rob Scharpf
+Author: Michael Chou, Jacob Fiksel, Stephen Cristiano, Rob Scharpf
 Depends:
   R (>= 3.3.2)
 Imports: abind, Hmisc, gtools, ggplot2,
