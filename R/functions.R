@@ -586,6 +586,12 @@ gmodel_oneiter <- function(model){
   
   # update child stats
   offspring <- child_stats(current$data)
+  if(nrow(offspring) != 3){
+    offspring2 <- tibble(copy_number=0:2)  %>%
+      left_join(offspring, by="copy_number")
+    offspring2$n[is.na(offspring2$n)] <- 0
+    offspring <- offspring2
+  }
   current$pi.child <- offspring$n / (sum(offspring$n))
   
   ##
