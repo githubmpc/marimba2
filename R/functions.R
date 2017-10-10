@@ -117,7 +117,7 @@ cnProb <- function(current, tbl, p){
   cn.prob <- d.y/cn.denom
   if(any(cn.denom == 0)) stop("zeros in denominator")
   colnames(cn.prob) <- NULL
-  stopifnot(all(rowSums(cn.prob)) == 1)
+  stopifnot(all.equal(rowSums(cn.prob), rep(1, nrow(cn.prob))))
   cn.prob
 }
 
