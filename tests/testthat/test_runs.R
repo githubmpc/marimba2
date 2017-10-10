@@ -45,14 +45,11 @@ test("Run Gibbs", {
 ##                                     model="Genetic", dat2)
   test.start <- multipleStarts(dat=dat2$data, nstarts=3, iter=10)
   test.mcmc <- mcmcList(test.start)
-
   gp=geneticParams()
-
   mp=mcmcParams(burnin=1000, iter=100, thin=1, nstarts=20, max_burnin=3000)
   mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=3, max_burnin=21)
   mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=50, max_burnin=21)
   mp=mcmcParams(burnin=1000, iter=1000, thin=5, nstarts=5, max_burnin=3000)
-
 
   start.time <- Sys.time()
   gibbs.test <- gibbs(mp, gp, dat2$data)
@@ -73,6 +70,13 @@ test("Run Gibbs", {
   gg_truth(dat2)
   gg_model(gibbs.unlist)
   posterior_difference(gibbs.sum, dat2)
+
+  ##
+  ##   ggChains
+  ##   ggMixture
+  gg_chains(gibbs.unlist)
+  gg_chains(gibbs.unlist, expected=dat2)
+
 
   # when debugging
   data <- dat2$data
