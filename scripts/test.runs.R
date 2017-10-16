@@ -12,13 +12,14 @@ library(tidyverse)
 library(magrittr)
 library(HWEBayes)
 library(coda)
+library(mclust)
 # load_all("marimba")
 setwd("~/Desktop/Chakravarti_Lab/git")
 load_all("marimba2")
 
 
 p <- c(0.25, 0.5, 0.25)
-theta <- c(-4,-1, 1)
+theta <- c(-4,-1, 2)
 sigma <- c(0.3, 0.3, 0.3)
 params <- data.frame(cbind(p, theta, sigma))
 
@@ -47,11 +48,22 @@ test.start <- multipleStarts(dat=dat2$data,nstarts=3,iter=10)
 test.mcmc <- mcmcList(test.start)
 
 gp=geneticParams()
+gp=geneticParams(K=3, states=0:2, xi=c(1.5, 1, 1), mu=c(-3, -0.5, 1))
+gp=geneticParams(K=3, states=1:3, xi=c(1.5, 1, 1), mu=c(-3, -0.5, 1))
+
+# generate appropriate matrix - must do step
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 
 mp=mcmcParams(burnin=1000, iter=100, thin=1, nstarts=20, max_burnin=3000)
 mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=3, max_burnin=21)
 mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=50, max_burnin=21)
+
+# this set of parameters takes 2.2 hours
 mp=mcmcParams(burnin=1000, iter=1000, thin=5, nstarts=5, max_burnin=3000)
+
+
+mp=mcmcParams(burnin=1500, iter=1000, thin=10, nstarts=10, max_burnin=3500)
+
 
 
 start.time <- Sys.time()
@@ -72,6 +84,7 @@ gibbs.sum <- posterior_summary(gibbs.unlist)
 gibbs.sum
 gg_truth(dat2)
 gg_model(gibbs.unlist)
+gg_chains(gibbs.unlist, dat2)
 posterior_difference(gibbs.sum, dat2)
 
 # when debugging
