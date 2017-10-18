@@ -25,13 +25,14 @@ initialize_chains <- function(states, N, K, S) {
   z <- matrix(0, N, K)
   theta <- matrix(0, S, K)
   sigma <- matrix(0, S, K)
-  tau <- matrix(0, S, K)
+  tau <- matrix(0, S, 3)
   logll <- rep(0, S)
   p <- matrix(0, nrow = S, ncol = K)
   pi.child <- matrix(0, nrow = S, ncol = K)
   colnames(p) <- states
   colnames(pi.child) <- states
-  colnames(tau) <- colnames(sigma) <- colnames(theta) <- states
+  colnames(tau) <- c(1,0.5,0)
+  colnames(sigma) <- colnames(theta) <- states
   list(z=z,
        theta=theta,
        sigma=sigma,
@@ -40,6 +41,96 @@ initialize_chains <- function(states, N, K, S) {
        p=p,
        pi.child=pi.child)
 }
+
+# create rds matrix file
+
+mprob.matrix <-  function(tau=c(0.5, 0.5, 0.5), gp){
+  states <- gp$states
+  tau1 <- tau[1]
+  tau2 <- tau[2]
+  tau3 <- tau[3]
+  mendelian.probs <- array(dim=c(25,6))
+  colnames(mendelian.probs) <- c("parents", "p(0|f,m)", "p(1|f,m)", "p(2|f,m)", "p(3|f,m)", "p(4|f,m)")
+  
+  mendelian.probs[1, 2:6] <- c(1,0,0,0,0)
+  mendelian.probs[2, 2:6] <- c(tau1, 1 - tau1, 0,0,0)
+  mendelian.probs[3, 2:6] <- c(tau2 / 2, 0.5, (1 - tau2) / 2, 0,0)
+  mendelian.probs[4, 2:6] <- c(0, tau3, 1 - tau3, 0,0)
+  mendelian.probs[5, 2:6] <- c(0,0,1,0,0)
+  mendelian.probs[6, 2:6] <- c(tau1, 1 - tau1, 0,0,0)
+  mendelian.probs[7, 2:6] <- c((tau1^2), 2 * (tau1 * (1 - tau1)), ((1 - tau1)^2), 0,0)
+  mendelian.probs[8, 2:6] <- c((tau1 * tau2) / 2, (tau2 * (1 - tau1) + tau1) / 2, (tau1 * (1-tau2) + (1 - tau1)) / 2, ((1 - tau1) * (1 - tau2)) / 2, 0)
+  mendelian.probs[9, 2:6] <- c(0, tau1 * tau3, tau1 * (1 - tau3) + (1 - tau1) * tau3, (1- tau1) * (1 - tau3), 0)
+  mendelian.probs[10, 2:6] <- c(0, 0, tau1, (1 - tau1), 0)
+  mendelian.probs[11, 2:6] <- c(tau2 / 2, 0.5, (1 - tau2) / 2, 0, 0)
+  mendelian.probs[12, 2:6] <- c((tau1 * tau2) / 2, (tau1 + tau2 * (1 - tau1)) / 2, ((1 - tau1) + (tau1 * (1-tau2)) ) / 2, (1 - tau1) * (1 - tau2) / 2, 0)
+  mendelian.probs[13, 2:6] <- c(tau2^2 / 4, tau2 / 2, (0.5 + tau2 * (1 - tau2)) / 2, (1 - tau2) / 2, (1 - tau2)^2 / 4)
+  mendelian.probs[14, 2:6] <- c(0, tau2 * tau3 / 2, (tau3 + tau2 * (1 - tau3)) / 2, (((1 - tau3) + (1 - tau2) * tau3) / 2), (1 - tau2) * (1 - tau1) /2)
+  mendelian.probs[15, 2:6] <- c(0, 0, tau2 / 2, 0.5, (1 - tau2) / 2)
+  mendelian.probs[16, 2:6] <- c(0, tau3, (1-tau3), 0, 0)
+  mendelian.probs[17, 2:6] <- c(0, tau1 * tau3, tau1 * (1 - tau3) + (1 - tau1) * tau3, (1 - tau1) * (1 - tau3), 0)
+  mendelian.probs[18, 2:6] <- c(0, tau2 * tau3 / 2, (tau3 + tau2 * (1 - tau3)) / 2, ((1 - tau3) + (1 - tau2) * tau3) / 2, (1 - tau2) * (1 - tau3) / 2)
+  mendelian.probs[19, 2:6] <- c(0,0, tau3^2, 2 * tau3 * (1 - tau3), (1 - tau3)^2)
+  mendelian.probs[20, 2:6] <- c(0,0,0, tau3, 1-tau3)
+  mendelian.probs[21, 2:6] <- c(0,0,1,0,0)
+  mendelian.probs[22, 2:6] <- c(0,0, tau1, 1 - tau1, 0)
+  mendelian.probs[23, 2:6] <- c(0,0, tau2 / 2, 0.5, (1 - tau2) / 2)
+  mendelian.probs[24, 2:6] <- c(0,0,0, tau3, 1 - tau3)
+  mendelian.probs[25, 2:6] <- c(0,0,0,0,1)
+  
+  if(all((rowSums(mendelian.probs, na.rm=T))==1)==F) stop("mendelian matrix is incorrect")
+  
+  mendelian.probs[, 1] <- c(00, 01, 02, 03, 04, 
+                            10, 11, 12, 13, 14,
+                            20, 21, 22, 23, 24,
+                            30, 31, 32, 33, 34,
+                            40, 41, 42, 43, 44)
+  
+  mprob.mat <- as.tibble(mendelian.probs)
+
+  
+  mprob.mat[, 1] <- c("00", "01", "02", "03", "04", 
+                 "10", "11", "12", "13", "14",
+                 "20", "21", "22", "23", "24",
+                 "30", "31", "32", "33", "34",
+                 "40", "41", "42", "43", "44")
+  
+  mprob.mat <- mprob.subset(mprob.mat, gp)
+  mprob.mat 
+  
+  extdata <- system.file("extdata", package="marimba2")
+  saveRDS(mprob.mat, file.path(extdata, "mendelian_probs2.rds"))
+}
+
+mprob.subset <- function(mprob.mat, gp) {
+  K <- gp$K
+  states <- gp$states
+  col.a <- states[1] + 2
+  col.b <- states[K] + 2
+  
+  ref.geno <- c("00", "01", "02", "03", "04", 
+                "10", "11", "12", "13", "14",
+                "20", "21", "22", "23", "24",
+                "30", "31", "32", "33", "34",
+                "40", "41", "42", "43", "44")
+  index <- mprob.label(gp)
+  rows <- match(index, ref.geno)
+    
+  mprob.subset <- mprob.mat[rows, c(col.a:col.b)]
+  mprob.rows <- mprob.mat[rows, 1]
+  mprob.subset <- cbind(mprob.rows, mprob.subset)
+  mprob.subset
+}
+
+mprob.label <- function(gp){
+  n <- gp$K
+  v <- gp$states
+  combo <- permutations(n=n, r=2, v=v, repeats.allowed=T)
+  geno.combo <- paste0(combo[,1], combo[,2])
+  geno.combo
+}
+
+# deprecate
 
 gMendelian <- function(tau=c(1, 0.5, 0), err=1e-4){
   tau.one <- tau[1]
@@ -124,7 +215,7 @@ cnProb <- function(current, tbl, p){
 # this function initialises and contains the mendelian transmission probabilities
 .init <- function(data, K, tau, e){
   extdata <- system.file("extdata", package="marimba2")
-  mprob <- readRDS(file.path(extdata, "mendelian_probs.rds"))
+  mprob <- readRDS(file.path(extdata, "mendelian_probs2.rds"))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
@@ -158,7 +249,7 @@ cnProb <- function(current, tbl, p){
   pi.child <- rdirichlet(1, gp$a)
   e <- gp$error
   extdata <- system.file("extdata", package="marimba2")
-  mprob <- readRDS(file.path(extdata, "mendelian_probs.rds"))
+  mprob <- readRDS(file.path(extdata, "mendelian_probs2.rds"))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
@@ -174,6 +265,7 @@ cnProb <- function(current, tbl, p){
 
 # different between gmodel and gmodel2 is in current - first includes data, second is parameters only
 # variable model in function calls usually refers to gmodel
+# different is .init vs .init2 - gmodel calls mclust and gmodel2 uses gp$a
 
 gmodel2 <- function(data,
                     mp=mcmcParams(),
@@ -338,7 +430,8 @@ update_parents <- function(model){
   p <- matrix(p, N, K, byrow=TRUE)
   tbl.parents$z <- cnProb(current, tbl.parents, p) %>%
     rMultinom(m=1)  %>% "["(, 1)
-  tbl.parents$copy_number <- tbl.parents$z - 1
+  M <- cn_adjust(model)
+  tbl.parents$copy_number <- tbl.parents$z + M
   tbl.parents
 }
 
@@ -349,7 +442,7 @@ update_offspring <- function(model, tbl.parents){
   gp <- model$gp
   current <- model$current
   mprob <- current$mprob
-  K <- length(current$theta)
+  K <- gp$K
   p <- tbl.parents %>%
     group_by(id) %>%
     arrange(family_member) %>%
@@ -363,8 +456,19 @@ update_offspring <- function(model, tbl.parents){
     select(starts_with("p("))
   tbl.child$z <- cnProb(current, tbl.child, p) %>%
     rMultinom(m=1)
-  tbl.child$copy_number <- tbl.child$z - 1
+  M <- cn_adjust(model)
+  tbl.child$copy_number <- tbl.child$z + M
   tbl.child
+}
+
+cn_adjust <- function(model){
+  gp <- model$gp
+  states <- gp$states
+  start.state <-states[1]
+  M <- (-1)
+  M <- ifelse(start.state==1, M==0, M)
+  M <- ifelse(start.state==2, M==1, M)
+  M <- ifelse(start.state==3, M==2, M)
 }
 
 update_cn <- function(model){
@@ -408,10 +512,12 @@ replaceIfMissing <- function(cn.states, expected=as.character(c(0, 1, 2))){
   cn.states
 }
 
-balance_cn <- function(stats, current){
-  index <- which(stats$n < 3)
-  if(nrow(stats) != 3){
-    stats <- tibble(copy_number=0:2)  %>%
+balance_cn <- function(stats, current, gp){
+  K <- gp$K
+  states <- gp$states
+  index <- which(stats$n < K)
+  if(nrow(stats) != K){
+    stats <- tibble(copy_number=states)  %>%
       left_join(stats, by="copy_number")
     index <- which(is.na(stats$mean))
   }
@@ -426,7 +532,7 @@ balance_cn <- function(stats, current){
   for(i in c(index)){
     d <- dnorm(lr, theta, sigma, log=TRUE)
     p <- d/sum(d)
-    ix <- order(p, decreasing=TRUE)[1:3]
+    ix <- order(p, decreasing=TRUE)[1:K]
     tbl$z[ix] <- i
   }
   tbl$copy_number <- tbl$z - 1
@@ -540,6 +646,7 @@ gmodel_oneiter <- function(model){
   pi.child <- current$pi.child
   theta <- current$theta
   sigma <- current$sigma
+  states <- gp$states
   ##
   ## update component labels
   ##
@@ -548,8 +655,8 @@ gmodel_oneiter <- function(model){
   ## update theta
   ##
   stats <- component_stats(current$data)
-  if(any(stats$n < 3) | nrow(stats) < 3){
-    current$data <- balance_cn(stats, current)
+  if(any(stats$n < K) | nrow(stats) < K){
+    current$data <- balance_cn(stats, current, gp)
     stats <- component_stats(current$data)
   }
   ymeans <- stats$mean
@@ -570,8 +677,8 @@ gmodel_oneiter <- function(model){
   ## update mixture probabilities
   ## -- only for parents
   parents <- parent_stats(current$data)
-  if(nrow(parents) != 3){
-    parents2 <- tibble(copy_number=0:2)  %>%
+  if(nrow(parents) != K){
+    parents2 <- tibble(copy_number=gp$states[1]:gp$states[K])  %>%
       left_join(parents, by="copy_number")
     parents2$n[is.na(parents2$n)] <- 0
     ##    pdat <- current$data %>%
@@ -586,8 +693,8 @@ gmodel_oneiter <- function(model){
   
   # update child stats
   offspring <- child_stats(current$data)
-  if(nrow(offspring) != 3){
-    offspring2 <- tibble(copy_number=0:2)  %>%
+  if(nrow(offspring) != K){
+    offspring2 <- tibble(copy_number=gp$states[1]:gp$states[K])  %>%
       left_join(offspring, by="copy_number")
     offspring2$n[is.na(offspring2$n)] <- 0
     offspring <- offspring2
@@ -1137,21 +1244,21 @@ mcmcParams <- function(iter=1000,
 ## log_ratio ~ normal(theta_z, sigma_z)
 ## theta ~ normal(mu, xi)
 ## sigma_z ~ IG(nu/2, 1/2*nu*sigma2.0)
-geneticParams <- function(K=3,
-                          states=0:2,
+geneticParams <- function(K=5,
+                          states=0:4,
                           tau=c(1, 0.5, 0),
-                          xi=c(1.5, 1, 1), 
-                          mu=c(-3, -0.5, 0), ## theoretical
+                          xi=c(1.5, 1, 1, 1, 1), 
+                          mu=c(-3, -0.5, 0, 1, 2), ## theoretical
                           nu=1,
                           sigma2.0=0.001,
-                          a=c(1, 1, 1),
+                          a=rep(1, K),
                           eta=c(0.5, 0.5),
                           error=1e-4,
                           ncp=30,
                           model="Genetic"){
   ##m.probs <- gMendelian(tau)
   list(K=K,
-       states=0:2,
+       states=states,
        tau=tau,
        mu=mu,
        xi=xi,
@@ -1510,9 +1617,9 @@ gelman_rubin <- function(mcmc_list, gp){
 }
 
 gibbs <- function(mp, gp, dat){
-  chains <- initialize_chains(states=c(0:2),
+  chains <- initialize_chains(states=gp$states,
                               N=nrow(dat),
-                              K=3,
+                              K=gp$K,
                               S=mp$iter+1L)
   max_burnin <- mp$max_burnin
   while(mp$burnin < max_burnin){
