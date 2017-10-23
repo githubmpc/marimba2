@@ -156,42 +156,6 @@ gMendelian <- function(tau=c(1, 0.5, 0), err=1e-4){
   mendelian.probs
 }
 
-kmean_clusters <- function(dat, params){
-  K <- params$K
-  y.mf <- dat[, 1:2]
-  y.mfdf <- melt(y.mf)
-  y.mfresponse <- y.mfdf$value
-  kmeans.result <- kmeans(y.mfresponse, K)
-  kmeans.center <- kmeans.result$centers
-  kmeans.order <- order(kmeans.center)
-  kmeans.clust <- kmeans.result$cluster
-  kmeans.clust <- sapply(kmeans.clust, function(x) which(kmeans.order==x))
-  y.mfdf$cn <- kmeans.clust - 1
-  y.mfdf
-}
-
-kmean_clusters.add <- function(kmean.df){
-  # use y.mfdf as input from kmean_clusters
-  kmean.clust<-kmean.df$cn
-  kmean.df$cn<-kmean.clust+1
-  kmean.df
-}
-
-p_offspring <- function(cn, mendelian.probs, theta){
-  t(apply(cn, 1, lookup_prob, mendelian.probs=mendelian.probs, theta=theta))
-}
-
-lookup_prob <- function(cn, mendelian.probs, theta) {
-  att <- names(theta)[1]
-  if((as.numeric(att))==0) {
-    mendelian.probs[, cn[2] + 1, cn[1] + 1]
-  } else if((as.numeric(att))==1) {
-    mendelian.probs[, cn[2], cn[1]]
-  } else {
-    mendelian.probs[, cn[2] - 1, cn[1] - 1]
-  }
-}
-
 cnProb <- function(current, tbl, p){
   sigma <- current$sigma
   theta <- current$theta
@@ -293,91 +257,6 @@ gmodel <- function(data,
        chains=chains,
        mp=mp,
        gp=gp)
-}
-
-initialize_gmodel <- function(dat, params, comp=1){
-  y.mf <- multi_K(dat, params)
-  y.mf <- y.mf[[comp]]
-  y.o <- dat[, "o"]
-  y.odf <- data.frame(value = y.o)
-  ## Assume that Z=0 corresponds to class 1, Z=1 corresponds to class 2
-  ## Random guesses for Z
-  cn.mf <- dcast(y.mf, Var1 ~ Var2, value.var="cn")[, -1]
-  y.mf.list <- split(y.mf$value, y.mf$cn)
-  ## Calculate sufficient statistics
-  Ns <- sapply(y.mf.list, length)
-  mus <- sapply(y.mf.list, mean, na.rm=TRUE)
-  vars <- sapply(y.mf.list, var, na.rm=TRUE)
-  theta <- mus
-  sigma2 <- vars
-  sigma <- sqrt(sigma2)
-  a <- params$a
-  d <- length(table(y.mf$cn))
-  a <- a[1:d]
-  pi <- rdirichlet(1, Ns+a)[1, ]
-  names(pi) <- names(theta)
-  
-  # update when making it for alternative types of models
-  #eta1 <- params$eta1
-  #eta2 <- params$eta2
-  # tau <- rbeta(1, eta1, eta2)
-  
-  ## create initial mendelian matrix
-  mendelian.probs <- gMendelian()
-  
-  ## Draw for offspring
-  p.o <- p_offspring(cn.mf, mendelian.probs, theta)
-
-  # process p.o into appropriate dimensions for < 3 components
-  p.o <- dim.reduct(p.o, comp)
-
-  cn.prob <- cnProb(p.o, y.o, theta, sigma)
-  cn.prob <- as.matrix(cn.prob)
-  ##
-  ## initialize copy number for offspring
-  ##
-  y.odf <- init.offspring.cn(cn.prob, cn.mf, comp, y.odf)
-  tab <- table(y.odf$cn)
-  check<-length(unique(y.mf$cn))
-  if(length(tab) != check) stop("Some components unobserved")
-  cn.all <- as.matrix(cbind(cn.mf, y.odf$cn))
-  colnames(cn.all) <- c("m", "f", "o")
-  list(y=dat,
-       cn=cn.all,
-       m.probs=mendelian.probs,
-       theta=theta,
-       sigma=sigma,
-       pi=pi,
-       tau=tau)
-}
-
-dim.reduct <- function(offspring.probs, comp){
-  if (comp==2){
-    offspring.probs <- offspring.probs[,1:2]
-  } else if (comp==3){
-    offspring.probs <- offspring.probs[,2:3]
-  } else if (comp==4) {
-    offspring.probs <- as.matrix(offspring.probs[,2])
-  } else if (comp==5) {
-    offspring.probs <- as.matrix(offspring.probs[,3])
-  } else offspring.probs <- offspring.probs
-  return (offspring.probs)
-}
-
-init.offspring.cn <- function(cn.prob, cn.mf, comp, y.odf){
-  if (comp < 3){
-    cn.o <- rMultinom(cn.prob, 1)[, 1]
-    y.odf$cn <- cn.o - 1
-  } else {
-    if (comp==3){
-      cn.o <- rMultinom(cn.prob, 1)[, 1]
-      y.odf$cn <- cn.o
-    } else {
-      cn.o <- cn.mf$m
-      y.odf$cn <- cn.o
-    }
-  }
-  return (y.odf)
 }
 
 compute_loglik <- function(current){
@@ -494,22 +373,6 @@ update_cn <- function(model){
     tbl.child2 <- update_offspring(model, tbl.parents2)
   }
   tbl
-}
-
-missingCnState <- function(cn.states, expected=as.character(c(0, 1, 2))){
-  observed.cnstates <- names(table(cn.states))
-  not.observed <- expected[ !expected %in% observed.cnstates ]
-  not.two <- names(table(cn.states)[table(cn.states)==1])
-  not.observed <- c(not.observed, not.two)
-  not.observed <- unique(not.observed)
-}
-
-replaceIfMissing <- function(cn.states, expected=as.character(c(0, 1, 2))){
-  missing.states <- missingCnState(cn.states)
-  if(length(missing.states) > 0){
-    cn.states[sample(seq_along(cn.states), 4)] <- as.numeric(missing.states)
-  }
-  cn.states
 }
 
 balance_cn <- function(stats, current, gp){
@@ -734,56 +597,6 @@ update_tau <- function(gmodel, params){
   pvec <- allele.freq$pvec[2]
 }
 
-update_tau.env <- function(gmodel, params){
-  a <- params$a
-  N <- params$N
-  ns <- n_parents(gmodel)
-  d <- length(ns) - 1
-  bvec0 <- a[1:d]
-  nvec <- as.numeric(n_child(gmodel))
-  # the line below will throw an error if balance.cn.all is not working properly to balance 3 components
-  # bvec0 should always be c(1,1) and nvec a length 3 vector for 3 component model
-  allele.freq <- DirichSampHWE(nvec,bvec0, 1)
-  # to generalise to multi-components, the line below will need to be revised.
-  pvec <- allele.freq$pvec[2]
-  denom <- 2 * ns[[3]] + ns[[2]]
-  numer <- pvec * 2* N
-  tau.env <- numer / denom
-  gmodel$tau[] <- tau.env
-  tau <- gmodel$tau
-  tau
-}
-
-update_tau.intermed <- function(gmodel, params){
-  # see notes in update_tau.env
-  a <- params$a
-  N <- params$N
-  ns <- n_parents(gmodel)
-  d <- length(ns) - 1
-  bvec0 <- a[1:d]
-  nvec <- as.numeric(n_child(gmodel))
-  allele.freq <- DirichSampHWE(nvec,bvec0, 1)
-  pvec <- allele.freq$pvec[2]
-  denom <- ns[[2]]
-  # numerator here is just for heterozygotes in kids so calculated accordingly
-  numer <- pvec * 2 * N * (nvec[2] / (nvec[2] + 2 * nvec[3]))
-  tau.intermed <- numer / denom
-  gmodel$tau[] <- tau.intermed
-  tau <- gmodel$tau
-  tau
-}
-
-update_mendel <- function(gmodel){
-  m.probs <- gmodel$m.probs
-  att <- attributes(gmodel$theta)
-  dim <- as.numeric(att$names) + 1
-  dim.l <- length(dim)
-  subset <- c(dim[1]:dim[dim.l])
-  m.probs <- m.probs[subset, subset, subset]
-  gmodel$m.probs <- m.probs
-  gmodel
- }
-
 # this module updates both the Mendelian transmission matrix as well as the taus where relecant
 updateTransmissionProb <- function(gmodel, params){
 
@@ -925,60 +738,6 @@ gibbs.cnv.call <- function(K, states, tau, xi, mu, nu, sigma2.0, a, eta, error, 
     DIC = gmodel.stats[2]
   ))
 }
-
- ##################
-    # old wrapper function 
-  # deprecated 
-  #######################
-    
-# gibbs.cnv.wrapper <- function(K, states, tau, xi, mu, nu, sigma2.0, a, eta, error, ncp, model, y=y){
-  # gparams <- geneticParams(K=K, states = states,
-  #                         tau = tau,
-   #                        xi = xi,
-    #                       mu = mu, nu = nu,
-     #                      sigma2.0 = sigma2.0, a = a,
-      #                     eta = eta, error = error,
-       #                    ncp = ncp, model = model)
- ## gmodel.k3 <- initialize_gmodel(y, gparams, 1)
-  #gmodel.k2a <- initialize_gmodel(y, gparams, 2)
-  #gmodel.k2b <- initialize_gmodel(y, gparams, 3)
-  #gmodel.k1a <- initialize_gmodel(y, gparams, 4)
-  #gmodel.k1b <- initialize_gmodel(y, gparams, 5)
-  
-  ## fit.k3 <- gibbs_genetic(gmodel.k3, gparams)
-  #fit.k2a <- gibbs_genetic(gmodel.k2a, gparams)
-  #fit.k2b <- gibbs_genetic(gmodel.k2b, gparams)
-  #fit.k1a <- gibbs_genetic(gmodel.k1a, gparams)
-  #fit.k1b <- gibbs_genetic(gmodel.k1b, gparams)
-  
- ## fit.chains.k3 <- fit.k3$chains$C
-  #fit.chains.k2a <- fit.k2a$chains$C
-  #fit.chains.k2b <- fit.k2b$chains$C
-  #fit.chains.k1a <- fit.k1a$chains$C
-  #fit.chains.k1b <- fit.k1b$chains$C
-  
- ## cn.stats.k3 <- map_cn(gmodel.k3, fit.chains.k3, gparams)
-  #cn.stats.k2a <- map_cn(gmodel.k2a, ch, gparams)
-  #cn.stats.k2b <- map_cn(gmodel.k2b, ch, gparams)
-  #cn.stats.k1a <- map_cn(gmodel.k1a, ch, gparams)
-  #cn.stats.k1b <- map_cn(gmodel.k1b, ch, gparams)
-  
- ## model.metrics <- model.comparison(fit.k3)
-  
- # return(list(post.thetas = fit.k3$chains$theta,
-  #            post.sigmas = fit.k3$chains$sigma,
-   #           post.pi = fit.k3$chains$pi,
-    #          taus = fit.k3$chains$tau,
-     #         post.cn0 = fit.k3$chains$C$C0,
-      #        post.cn1 = fit.k3$chains$C$C1,
-       #       post.cn2 = fit.k3$chains$C$C2,
-        #      trio.cn = cn.stats.k3$cn,
-         #     trio.cn.probs = cn.stats.k3$prob,
-          #    logll = fit.k3$chains$logll,
-           #   model.BIC = model.metrics[1],
-            #  model.DIC = model.metrics[2])
-         #)
-# }
 
 # model comparison metrixs
 # calculation of BIC and DIC
@@ -1147,77 +906,6 @@ statistics_1000g <- function(region){
   params <- cbind(p, theta, sigma)
   colnames(params) <- c("p", "theta", "sigma")
   as.tibble(params)
-}
-
-# simulate from environmental model
-# set taus to arbitary but the same value
-simulate_data.env1 <- function(params, N, error=0){
-  ##mendelian.probs <- mendelianProb(epsilon=error)
-  ##mendelian.probs <- gMendelian(tau.one=0.1, tau.two=0.1, tau.three=0.1, err=0)
-  mendelian.probs <- gMendelian(params)
-  ##stats <- statistics_1000g(region)
-  dat <- simulate_data(params, N, mendelian.probs)
-  dat$cn <- dat$cn - 1
-  colnames(dat$cn) <- c("m", "f", "o")
-  colnames(dat$response) <- gsub("y_", "", colnames(dat$response))
-  names(dat) <- c("y", "cn")
-  dat$theta <- setNames(params[, "theta"], 0:2)
-  dat$sigma <- setNames(params[, "sigma"], 0:2)
-  dat$p <- setNames(params[, "p"], 0:2)
-  dat$logll <- compute_loglik(dat)
-  dat
-}
-
-simulate_data.env2 <- function(params, N, error=0){
-  ##mendelian.probs <- mendelianProb(epsilon=error)
-  ##mendelian.probs <- gMendelian(tau.one=0.8, tau.two=0.8, tau.three=0.8, err=0)
-  mendelian.probs <- gMendelian(tau.one=0.8, tau.two=0.8, tau.three=0.8, err=0)
-  ##stats <- statistics_1000g(region)
-  dat <- simulate_data(params, N, mendelian.probs)
-  dat$cn <- dat$cn - 1
-  colnames(dat$cn) <- c("m", "f", "o")
-  colnames(dat$response) <- gsub("y_", "", colnames(dat$response))
-  names(dat) <- c("y", "cn")
-  dat$theta <- setNames(params[, "theta"], 0:2)
-  dat$sigma <- setNames(params[, "sigma"], 0:2)
-  dat$p <- setNames(params[, "p"], 0:2)
-  dat$logll <- compute_loglik(dat)
-  dat
-}
-
-mendelianProb <- function(epsilon=0){
-  ## Mendelian probability array for child
-  ## for ease of referencing of row/ column names, let (0,0) = BB, (0,1)= AB and (1,1) = AA
-  ## here BB, AB, AA represent from mother dim for array creation
-  ## the probability array is labelled with .c, .f and .m representing child, father, mother respectively
-  ##  BB <- matrix(c(1, 0, 0,
-  ##                 0.5, 0.5, 0,
-  ##                 0, 1, 0) ,nrow=3, ncol=3,
-  ##               dimnames=list(c("BB","AB","AA"),c("BB","AB","AA")))
-  ##  AB <- matrix(c(0.5, 0.5, 0,
-  ##                 0.25, 0.5, 0.25,
-  ##                 0, 0.5, 0.5) ,nrow=3, ncol=3,
-  ##               dimnames=list(c("BB","AB","AA"),c("BB","AB","AA")))
-  ##  AA <- matrix(c(0, 1, 0,
-  ##                 0, 0.5, 0.5,
-  ##                 0, 0, 1) ,nrow=3, ncol=3,
-  ##               dimnames=list(c("BB","AB","AA"),c("BB","AB","AA")))
-  ##  mendelian.probs <- abind(BB, AB, AA, along=3,
-  ##                           new.names=list(c("BB.c","AB.c","AA.c"),
-  ##                                          c("BB.f","AB.f","AA.f"),
-  ##                                          c("BB.m","AB.m","AA.m")))
-  .Deprecated("use gMendelian")
-  mendelian.probs <- array(dim=c(3, 3, 3))
-  mendelian.probs[, 1, 1] <- c(1 - epsilon, epsilon/2, epsilon/2)
-  mendelian.probs[, 2, 1] <- c(.5 - epsilon/2, .5 - epsilon/2, epsilon)
-  mendelian.probs[, 3, 1] <- c(epsilon/2, 1 - epsilon, epsilon/2)
-  mendelian.probs[, 1, 2] <- c(.5 - epsilon/2 , .5 - epsilon/2, epsilon)
-  mendelian.probs[, 2, 2] <- c(.25, .5, .25)
-  mendelian.probs[, 3, 2] <- c(epsilon, .5 - epsilon/2, .5 - epsilon/2)
-  mendelian.probs[, 1, 3] <- c(epsilon/2, 1 - epsilon, epsilon/2)
-  mendelian.probs[, 2, 3] <- c(epsilon, .5 - epsilon/2, .5 - epsilon/2)
-  mendelian.probs[, 3, 3] <- c(epsilon/2, epsilon/2, 1 - epsilon)
-  mendelian.probs
 }
 
 gg_cnp <- function(dat){
