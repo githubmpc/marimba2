@@ -43,6 +43,7 @@ initialize_chains <- function(states, N, K, S) {
 }
 
 # create rds matrix file
+# the taus represent transmission probability of heterozygotes of the 3 alleles
 
 mprob.matrix <-  function(tau=c(0.5, 0.5, 0.5), gp){
   states <- gp$states
@@ -345,9 +346,9 @@ cn_adjust <- function(model){
   states <- gp$states
   start.state <-states[1]
   M <- (-1)
-  M <- ifelse(start.state==1, M==0, M)
-  M <- ifelse(start.state==2, M==1, M)
-  M <- ifelse(start.state==3, M==2, M)
+  M <- ifelse(start.state==1, M <- 0, M)
+  M <- ifelse(start.state==2, M <- 1, M)
+  M <- ifelse(start.state==3, M <- 2, M)
 }
 
 update_cn <- function(model){
@@ -357,21 +358,21 @@ update_cn <- function(model){
   tbl <- bind_rows(tbl.parents, tbl.child) %>%
     arrange(id, family_member)
   ## check:  should be hemizygous but not called hemizygous
-  tmp <- tbl %>%
-    filter(log_ratio < -0.5 & log_ratio > -1.5 & copy_number != 1)
-  if(nrow(tmp) > 0){
-    ggplot(tbl, aes(copy_number, log_ratio)) +
-      geom_jitter(width=0.05, aes(color=family_member))
-    problem.id <- tmp$id
-    tbl %>% filter(id %in% problem.id, family_member %in% c("f", "m")) %>%
-      group_by(id) %>%
-      summarize(fm=paste0(family_member, collapse=""),
-                copy_number=paste0(copy_number, collapse=""))
-    tbl %>% filter(id %in% problem.id, family_member %in% c("f", "m", "o"))
-
-    tbl.parents2 <- tbl %>% filter(id %in% tmp$id, family_member %in% c("f", "m"))
-    tbl.child2 <- update_offspring(model, tbl.parents2)
-  }
+ # tmp <- tbl %>%
+ #   filter(log_ratio < -0.5 & log_ratio > -1.5 & copy_number != 1)
+#  if(nrow(tmp) > 0){
+ #   ggplot(tbl, aes(copy_number, log_ratio)) +
+  #    geom_jitter(width=0.05, aes(color=family_member))
+  #  problem.id <- tmp$id
+  #  tbl %>% filter(id %in% problem.id, family_member %in% c("f", "m")) %>%
+   #   group_by(id) %>%
+    #  summarize(fm=paste0(family_member, collapse=""),
+    #           copy_number=paste0(copy_number, collapse=""))
+  #  tbl %>% filter(id %in% problem.id, family_member %in% c("f", "m", "o"))
+#
+ #   tbl.parents2 <- tbl %>% filter(id %in% tmp$id, family_member %in% c("f", "m"))
+  #  tbl.child2 <- update_offspring(model, tbl.parents2)
+  #}
   tbl
 }
 
@@ -739,7 +740,7 @@ gibbs.cnv.call <- function(K, states, tau, xi, mu, nu, sigma2.0, a, eta, error, 
   ))
 }
 
-# model comparison metrixs
+# model comparison metrics
 # calculation of BIC and DIC
 
 model.compare <- function (fit.model) {
@@ -1160,6 +1161,22 @@ posterior_summary <- function(model){
   list(data=tbl, posterior_means=params, convergence=convergence)
 }
 
+compute_dic <- function(model){
+  post.sum <- posterior_summary(model)
+  mdat <- post.sum$data
+  lr <- mdat$log_ratio
+  z <- mdat$z
+  theta <- post.sum$posterior_means$theta[z]
+  sigma <- post.sum$posterior_means$sigma[z]
+  logll <- sum(dnorm(lr, theta, sigma, log=TRUE))
+  
+  logll.count <- length(model$chains$logll)
+  logll.sum <- sum(model$chains$logll)
+  eff.params <- 2 * (logll - (1 / logll.count * logll.sum))
+  model.dic <- -2 * (logll - eff.params)
+  model.dic
+}
+
 current_summary <- function(model){
   current <- model$current
   tbl <- current$data
@@ -1205,6 +1222,83 @@ multipleStarts <- function(dat, nstarts, top=10, burnin=50, iter=0, thin=1){
   ix <- order(ll, decreasing=TRUE)
   ix <- head(ix, top)
   mlist[ix]
+}
+
+results.out <- function(model) {
+  gibbs.select <- selectModels(model)
+  gibbs.results <- lapply(model, "[", gibbs.select)
+  gibbs.results <- gibbs.test[gibbs.select]
+  gibbs.diag <- diagnostics(gibbs.results)
+  gibbs.unlist <- unlistModels(gibbs.results)
+  gibbs.unlist
+}
+
+multiple_models <- function(data, mp){
+ gibbs.results.list <- list()
+ gibbs.dic <- rep(NA, 10)
+  
+ gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+ mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+  model.results <- gibbs(mp, gp, data$data)
+ gibbs.results.list[[1]]  <- results.out(model.results)
+gibbs.dic[1] <- compute_dic(gibbs.results.list[[1]])
+
+gp=geneticParams(K=2, states=1:2, xi=c(1, 1), mu=c(-0.5, 0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[2]]  <- results.out(model.results)
+gibbs.dic[2] <- compute_dic(gibbs.results.list[[2]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[3]]  <- results.out(model.results)
+gibbs.dic[3] <- compute_dic(gibbs.results.list[[3]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[4]]  <- results.out(model.results)
+gibbs.dic[4] <- compute_dic(gibbs.results.list[[4]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[5]]  <- results.out(model.results)
+gibbs.dic[5] <- compute_dic(gibbs.results.list[[5]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[6]]  <- results.out(model.results)
+gibbs.dic[6] <- compute_dic(gibbs.results.list[[6]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[7]]  <- results.out(model.results)
+gibbs.dic[7] <- compute_dic(gibbs.results.list[[7]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[8]]  <- results.out(model.results)
+gibbs.dic[8] <- compute_dic(gibbs.results.list[[8]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[9]]  <- results.out(model.results)
+gibbs.dic[9] <- compute_dic(gibbs.results.list[[9]])
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[10]]  <- results.out(model.results)
+gibbs.dic[10] <- compute_dic(gibbs.results.list[[10]])
+
+index <- which(order(gibbs.dic)==1)
+gibbs.results.select <- gibbs.results.list[[index]]
 }
 
 setMcmcParams <- function(model, mp){
