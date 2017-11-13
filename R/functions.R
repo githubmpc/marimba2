@@ -1299,6 +1299,7 @@ gibbs.dic[10] <- compute_dic(gibbs.results.list[[10]])
 
 index <- which(order(gibbs.dic)==1)
 gibbs.results.select <- gibbs.results.list[[index]]
+gibbs.results.select
 }
 
 setMcmcParams <- function(model, mp){

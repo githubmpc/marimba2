@@ -96,6 +96,10 @@ gg_model(gibbs.unlist)
 gg_chains(gibbs.unlist, dat2)
 posterior_difference(gibbs.sum, dat2)
 
+# multiple model selection mode
+data <- dat2$data
+gibbs.model <- multiple_models(data, mp)
+
 # when debugging
 data <- dat2$data
 
