@@ -48,8 +48,16 @@ test.start <- multipleStarts(dat=dat2$data,nstarts=3,iter=10)
 test.mcmc <- mcmcList(test.start)
 
 gp=geneticParams()
+gp=geneticParams(K=5, states=0:4, xi=c(1.5, 1, 1, 1.5, 1.5), mu=c(-3, -0.5, 0.5, 1.5, 2.5))
+gp=geneticParams(K=4, states=0:3, xi=c(1.5, 1, 1, 1.5), mu=c(-3, -0.5, 0.5, 1.5))
+gp=geneticParams(K=4, states=1:4, xi=c(1, 1, 1.5, 1.5), mu=c(-0.5, 0.5, 1.5, 2.5))
 gp=geneticParams(K=3, states=0:2, xi=c(1.5, 1, 1), mu=c(-3, -0.5, 1))
-gp=geneticParams(K=3, states=1:3, xi=c(1.5, 1, 1), mu=c(-3, -0.5, 1))
+gp=geneticParams(K=3, states=1:3, xi=c(1.5, 1, 1), mu=c(-0.5, 0.5, 1.5))
+gp=geneticParams(K=3, states=2:4, xi=c(1, 1.5, 1.5), mu=c(0.5, 1.5, 2.5))
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+gp=geneticParams(K=2, states=1:2, xi=c(1, 1), mu=c(-0.5, 0.5))
+gp=geneticParams(K=2, states=2:3, xi=c(1, 1 ), mu=c(0.5, 1.5))
+gp=geneticParams(K=2, states=3:4, xi=c(1.5, 1.5 ), mu=c(1.5, 2.5))
 
 # generate appropriate matrix - must do step
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
@@ -81,6 +89,7 @@ gibbs.unlist <- unlistModels(gibbs.test2)
 # results output
 current_summary(gibbs.unlist)
 gibbs.sum <- posterior_summary(gibbs.unlist)
+gibbs.dic <- compute_dic(gibbs.unlist)
 gibbs.sum
 gg_truth(dat2)
 gg_model(gibbs.unlist)
