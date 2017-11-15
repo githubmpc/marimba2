@@ -1227,7 +1227,7 @@ multipleStarts <- function(dat, nstarts, top=10, burnin=50, iter=0, thin=1){
 results.out <- function(model) {
   gibbs.select <- selectModels(model)
   gibbs.results <- lapply(model, "[", gibbs.select)
-  gibbs.results <- gibbs.test[gibbs.select]
+  #gibbs.results <- model[gibbs.select]
   gibbs.diag <- diagnostics(gibbs.results)
   gibbs.unlist <- unlistModels(gibbs.results)
   gibbs.unlist
