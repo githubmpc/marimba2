@@ -349,6 +349,7 @@ cn_adjust <- function(model){
   M <- ifelse(start.state==1, M <- 0, M)
   M <- ifelse(start.state==2, M <- 1, M)
   M <- ifelse(start.state==3, M <- 2, M)
+  return(M)
 }
 
 update_cn <- function(model){
@@ -376,7 +377,7 @@ update_cn <- function(model){
   tbl
 }
 
-balance_cn <- function(stats, current, gp){
+balance_cn <- function(stats, current, gp, model){
   K <- gp$K
   states <- gp$states
   index <- which(stats$n < K)
@@ -399,7 +400,8 @@ balance_cn <- function(stats, current, gp){
     ix <- order(p, decreasing=TRUE)[1:K]
     tbl$z[ix] <- i
   }
-  tbl$copy_number <- tbl$z - 1
+  M <- cn_adjust(model)
+  tbl$copy_number <- tbl$z + M
   tbl
 }
 
@@ -520,7 +522,7 @@ gmodel_oneiter <- function(model){
   ##
   stats <- component_stats(current$data)
   if(any(stats$n < K) | nrow(stats) < K){
-    current$data <- balance_cn(stats, current, gp)
+    current$data <- balance_cn(stats, current, gp, model)
     stats <- component_stats(current$data)
   }
   ymeans <- stats$mean
@@ -648,7 +650,8 @@ update_chains <- function(model, i){
   dat <- current$data
   gp <- model$gp
   K <- gp$K
-  z <- dat$copy_number + 1
+  M <- cn_adjust(model)
+  z <- dat$copy_number - M
   zchain <- chains$z
   for(j in seq_len(K)){
     zchain[, j] <- zchain[, j] + (z == j)*1L
@@ -1124,7 +1127,8 @@ startAtTrueValues <- function(truth, model){
   current$sigma <- truth$params$sigma
   current$p <- truth$params$p
   current$data$copy_number <- truth$data$copy_number
-  current$data$z <- truth$data$copy_number + 1
+  M <- cn_adjust(model)
+  current$data$z <- truth$data$copy_number - M
   model$current <- current
   model
 }
@@ -1140,9 +1144,10 @@ longFormat <- function(logr, cn){
 }
 
 posterior_summary <- function(model){
+  M <- cn_adjust(model)
   tbl <- model$current$data %>%
     mutate(copy_number=map_cn2(model)) %>%
-    mutate(z=copy_number + 1)
+    mutate(z=copy_number - M)
   ch <- model$chains
   K <- model$gp$K
   params <- tibble(p=colMeans(ch$p),
