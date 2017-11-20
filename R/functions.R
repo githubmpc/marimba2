@@ -131,9 +131,7 @@ mprob.label <- function(gp){
   geno.combo
 }
 
-# deprecate
-
-gMendelian <- function(tau=c(1, 0.5, 0), err=1e-4){
+gMendelian <- function(tau=c(1, 0.5, 0), err=5e-4){
   tau.one <- tau[1]
   tau.two <- tau[2]
   tau.three <- tau[3]
@@ -170,15 +168,16 @@ cnProb <- function(current, tbl, p){
     matrix(N, K, byrow=TRUE) %>%
     "*"(p)
   cn.denom <- rowSums(d.y, na.rm=TRUE)
+  cn.denom <- ifelse(cn.denom==0, 0.0000000001, cn.denom)
   cn.prob <- d.y/cn.denom
-  if(any(cn.denom == 0)) stop("zeros in denominator")
+  # if(any(cn.denom == 0)) stop("zeros in denominator")
   colnames(cn.prob) <- NULL
-  stopifnot(all.equal(rowSums(cn.prob), rep(1, nrow(cn.prob))))
+  # stopifnot(all.equal(rowSums(cn.prob), rep(1, nrow(cn.prob))))
   cn.prob
 }
 
 # this function initialises and contains the mendelian transmission probabilities
-.init <- function(data, K, tau, e){
+.init <- function(data, K, tau, e, gp){
   extdata <- system.file("extdata", package="marimba2")
   mprob <- readRDS(file.path(extdata, "mendelian_probs2.rds"))
   if(e > 0){
@@ -189,7 +188,8 @@ cnProb <- function(current, tbl, p){
   lr <- data$log_ratio
   tmp <- capture.output(mmod <- Mclust(lr, G=K))
   data$z <- mmod$classification
-  data$copy_number <- data$z - 1
+  M <- cn_adjust2(gp)
+  data$copy_number <- data$z + M
   theta <- mmod$parameters$mean
   sigma <- sqrt(mmod$parameters$variance$sigmasq)
   p <- mmod$parameters$pro
@@ -219,7 +219,7 @@ cnProb <- function(current, tbl, p){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
     mprob[, -1] <- mprob2
-  }
+   }
   current <- list(theta=theta,
                   sigma=sigma,
                   p=p,
@@ -249,7 +249,7 @@ gmodel2 <- function(data,
 gmodel <- function(data,
                    mp=mcmcParams(),
                    gp=geneticParams()){
-  current <- .init(data, gp$K, gp$tau, gp$error)
+  current <- .init(data, gp$K, gp$tau, gp$error, gp)
   chains <- initialize_chains(states=gp$states,
                               N=nrow(data),
                               K=gp$K,
@@ -308,8 +308,14 @@ update_parents <- function(model){
   p <- current$p
   N <- nrow(tbl.parents)
   p <- matrix(p, N, K, byrow=TRUE)
-  tbl.parents$z <- cnProb(current, tbl.parents, p) %>%
-    rMultinom(m=1)  %>% "["(, 1)
+  par.tbl <- cnProb(current, tbl.parents, p)
+  if(any(rowSums(par.tbl)!=1)){
+    par.tbl <- par.tbl / rowSums(par.tbl)
+    par.tbl
+  }
+  par.tbl <- rMultinom(par.tbl, m=1)
+  par.tbl <- par.tbl[,1]
+  tbl.parents$z <- par.tbl
   M <- cn_adjust(model)
   tbl.parents$copy_number <- tbl.parents$z + M
   tbl.parents
@@ -349,8 +355,21 @@ cn_adjust <- function(model){
   M <- ifelse(start.state==1, M <- 0, M)
   M <- ifelse(start.state==2, M <- 1, M)
   M <- ifelse(start.state==3, M <- 2, M)
-  return(M)
+  M <- as.numeric(M)
+  M
 }
+
+cn_adjust2 <- function(gp){
+  states <- gp$states
+  start.state <-states[1]
+  M <- (-1)
+  M <- ifelse(start.state==1, M <- 0, M)
+  M <- ifelse(start.state==2, M <- 1, M)
+  M <- ifelse(start.state==3, M <- 2, M)
+  M <- as.numeric(M)
+  M
+}
+
 
 update_cn <- function(model){
   tbl.parents <- update_parents(model)
@@ -753,26 +772,6 @@ model.compare <- function (fit.model) {
            model.DIC = DIC)
 }
 
-calc.BIC <- function (fit.model) {
-  n.sample <- length(fit.model$current$data$z)
-  # what is npar free parameters
-  npar <- length(fit.model$chains$logll)
-  logll <- fit.model$chains$logll
-  bic.calc <- log(n.sample)*npar - 2*logll
-  bic.calc <- mean(bic.calc)
-  bic.calc
-}
-
-calc.DIC <- function (fit.model) {
-  S <- nrow(fit.model$chains$theta)
-  logll <- fit.model$chains$logll
-  logll.sum <- sum(fit.model$chains$logll)
-  npar <- 2*(logll - (1/S * logll.sum))
-  dic.calc <- -2*(logll-npar)
-  dic.calc <- mean(dic.calc)
-  dic.calc
-}
-
 # output results summary
 gibbs.results <- function(sim.truth, gibbs.cnv, params){
   N <- params$N
@@ -945,7 +944,7 @@ geneticParams <- function(K=5,
                           sigma2.0=0.001,
                           a=rep(1, K),
                           eta=c(0.5, 0.5),
-                          error=1e-4,
+                          error=5e-4,
                           ncp=30,
                           model="Genetic"){
   ##m.probs <- gMendelian(tau)
@@ -1009,11 +1008,11 @@ gg_chains <- function(model, expected){
 #'
 #' @param model a fitted model
 #' @return a vector of the maximum a posterior copy number
-map_cn2 <- function(model){
+map_cn2 <- function(model, M){
   freq <- model$chains$z
   iter <- model$mp$iter + 1
   prob <- freq/iter
-  max.col(prob) - 1
+  max.col(prob) + M
   #list(prob = prob,
    #    cn = cn)
 }
@@ -1143,13 +1142,13 @@ longFormat <- function(logr, cn){
   tbl
 }
 
-posterior_summary <- function(model){
-  M <- cn_adjust(model)
+posterior_summary <- function(model, gp){
+  M <- cn_adjust2(gp)
   tbl <- model$current$data %>%
-    mutate(copy_number=map_cn2(model)) %>%
+    mutate(copy_number=map_cn2(model, M)) %>%
     mutate(z=copy_number - M)
   ch <- model$chains
-  K <- model$gp$K
+  K <- gp$K
   params <- tibble(p=colMeans(ch$p),
                    theta=colMeans(ch$theta),
                    sigma=colMeans(ch$sigma))
@@ -1166,8 +1165,8 @@ posterior_summary <- function(model){
   list(data=tbl, posterior_means=params, convergence=convergence)
 }
 
-compute_dic <- function(model){
-  post.sum <- posterior_summary(model)
+compute_dic <- function(model, gp){
+  post.sum <- posterior_summary(model, gp)
   mdat <- post.sum$data
   lr <- mdat$log_ratio
   z <- mdat$z
@@ -1180,6 +1179,40 @@ compute_dic <- function(model){
   eff.params <- 2 * (logll - (1 / logll.count * logll.sum))
   model.dic <- -2 * (logll - eff.params)
   model.dic
+}
+
+compute_dic.alt <- function(model, gp){
+  post.sum <- posterior_summary(model, gp)
+  mdat <- post.sum$data
+  lr <- mdat$log_ratio
+  z <- mdat$z
+  theta <- post.sum$posterior_means$theta[z]
+  sigma <- post.sum$posterior_means$sigma[z]
+  logll <- sum(dnorm(lr, theta, sigma, log=TRUE))
+  
+  logll.prep <- -2 * model$chains$logll
+  logll.mean <- mean(logll.prep)
+  pd <- logll.mean - (-2 * logll)
+  model.dic <- -2 * logll + 2 * pd
+  model.dic
+}
+
+compute_bic <- function (model, gp) {
+  post.sum <- posterior_summary(model, gp)
+  mdat <- post.sum$data
+  lr <- mdat$log_ratio
+  z <- mdat$z
+  theta <- post.sum$posterior_means$theta[z]
+  sigma <- post.sum$posterior_means$sigma[z]
+  logll <- sum(dnorm(lr, theta, sigma, log=TRUE))
+  
+  n.sample <- nrow(model$current$data)
+  # what is npar free parameters
+  npar <- gp$K * 3 + 3
+  logll <- model$chains$logll
+  model.bic <- log(n.sample)*npar - 2*logll
+  model.bic <- mean(model.bic)
+  model.bic
 }
 
 current_summary <- function(model){
@@ -1229,11 +1262,11 @@ multipleStarts <- function(dat, nstarts, top=10, burnin=50, iter=0, thin=1){
   mlist[ix]
 }
 
-results.out <- function(model) {
+results.out <- function(model, gp) {
   gibbs.select <- selectModels(model)
-  gibbs.results <- lapply(model, "[", gibbs.select)
-  #gibbs.results <- model[gibbs.select]
-  gibbs.diag <- diagnostics(gibbs.results)
+  #gibbs.results <- lapply(model, "[", gibbs.select)
+  gibbs.results <- model[gibbs.select]
+  gibbs.diag <- diagnostics(gibbs.results, gp)
   gibbs.unlist <- unlistModels(gibbs.results)
   gibbs.unlist
 }
@@ -1241,70 +1274,96 @@ results.out <- function(model) {
 multiple_models <- function(data, mp){
  gibbs.results.list <- list()
  gibbs.dic <- rep(NA, 10)
+ gibbs.dic.alt <- rep(NA, 10)
+ gibbs.bic <- rep(NA, 10)
   
- gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+ gp=geneticParams(K=5, states=0:4, xi=c(1.5, 1, 1, 1.5, 1.5), mu=c(-3, -0.5, 0.5, 1.5, 2.5))
  mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
   model.results <- gibbs(mp, gp, data$data)
- gibbs.results.list[[1]]  <- results.out(model.results)
-gibbs.dic[1] <- compute_dic(gibbs.results.list[[1]])
+ gibbs.results.list[[1]]  <- results.out(model.results, gp)
+gibbs.dic[1] <- compute_dic(gibbs.results.list[[1]], gp)
+gibbs.dic.alt[1] <- compute_dic.alt(gibbs.results.list[[1]], gp)
+gibbs.bic[1] <- compute_bic(gibbs.results.list[[1]], gp)
+
+gp=geneticParams(K=4, states=0:3, xi=c(1.5, 1, 1, 1.5), mu=c(-3, -0.5, 0.5, 1.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[2]]  <- results.out(model.results, gp)
+gibbs.dic[2] <- compute_dic(gibbs.results.list[[2]], gp)
+gibbs.dic.alt[2] <- compute_dic.alt(gibbs.results.list[[2]], gp)
+gibbs.bic[2] <- compute_bic(gibbs.results.list[[2]], gp)
+
+gp=geneticParams(K=4, states=1:4, xi=c(1, 1, 1.5, 1.5), mu=c(-0.5, 0.5, 1.5, 2.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[3]]  <- results.out(model.results, gp)
+gibbs.dic[3] <- compute_dic(gibbs.results.list[[3]], gp)
+gibbs.dic.alt[3] <- compute_dic.alt(gibbs.results.list[[3]], gp)
+gibbs.bic[3] <- compute_bic(gibbs.results.list[[3]], gp)
+
+gp=geneticParams(K=3, states=0:2, xi=c(1.5, 1, 1), mu=c(-3, -0.5, 1))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[4]]  <- results.out(model.results, gp)
+gibbs.dic[4] <- compute_dic(gibbs.results.list[[4]], gp)
+gibbs.dic.alt[4] <- compute_dic.alt(gibbs.results.list[[4]], gp)
+gibbs.bic[4] <- compute_bic(gibbs.results.list[[4]], gp)
+
+gp=geneticParams(K=3, states=1:3, xi=c(1.5, 1, 1), mu=c(-0.5, 0.5, 1.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[5]]  <- results.out(model.results, gp)
+gibbs.dic[5] <- compute_dic(gibbs.results.list[[5]], gp)
+gibbs.dic.alt[5] <- compute_dic.alt(gibbs.results.list[[5]], gp)
+gibbs.bic[5] <- compute_bic(gibbs.results.list[[5]], gp)
+
+gp=geneticParams(K=3, states=2:4, xi=c(1, 1.5, 1.5), mu=c(0.5, 1.5, 2.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[6]]  <- results.out(model.results, gp)
+gibbs.dic[6] <- compute_dic(gibbs.results.list[[6]], gp)
+gibbs.dic.alt[6] <- compute_dic.alt(gibbs.results.list[[6]], gp)
+gibbs.bic[6] <- compute_bic(gibbs.results.list[[6]], gp)
+
+gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+model.results <- gibbs(mp, gp, data$data)
+gibbs.results.list[[7]]  <- results.out(model.results, gp)
+gibbs.dic[7] <- compute_dic(gibbs.results.list[[7]], gp)
+gibbs.dic.alt[7] <- compute_dic.alt(gibbs.results.list[[7]], gp)
+gibbs.bic[7] <- compute_bic(gibbs.results.list[[7]], gp)
 
 gp=geneticParams(K=2, states=1:2, xi=c(1, 1), mu=c(-0.5, 0.5))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[2]]  <- results.out(model.results)
-gibbs.dic[2] <- compute_dic(gibbs.results.list[[2]])
+gibbs.results.list[[8]]  <- results.out(model.results, gp)
+gibbs.dic[8] <- compute_dic(gibbs.results.list[[8]], gp)
+gibbs.dic.alt[8] <- compute_dic.alt(gibbs.results.list[[8]], gp)
+gibbs.bic[8] <- compute_bic(gibbs.results.list[[8]], gp)
 
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+gp=geneticParams(K=2, states=2:3, xi=c(1, 1 ), mu=c(0.5, 1.5))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[3]]  <- results.out(model.results)
-gibbs.dic[3] <- compute_dic(gibbs.results.list[[3]])
+gibbs.results.list[[9]]  <- results.out(model.results, gp)
+gibbs.dic[9] <- compute_dic(gibbs.results.list[[9]], gp)
+gibbs.dic.alt[9] <- compute_dic.alt(gibbs.results.list[[9]], gp)
+gibbs.bic[9] <- compute_bic(gibbs.results.list[[9]], gp)
 
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
+gp=geneticParams(K=2, states=3:4, xi=c(1.5, 1.5 ), mu=c(1.5, 2.5))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[4]]  <- results.out(model.results)
-gibbs.dic[4] <- compute_dic(gibbs.results.list[[4]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[5]]  <- results.out(model.results)
-gibbs.dic[5] <- compute_dic(gibbs.results.list[[5]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[6]]  <- results.out(model.results)
-gibbs.dic[6] <- compute_dic(gibbs.results.list[[6]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[7]]  <- results.out(model.results)
-gibbs.dic[7] <- compute_dic(gibbs.results.list[[7]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[8]]  <- results.out(model.results)
-gibbs.dic[8] <- compute_dic(gibbs.results.list[[8]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[9]]  <- results.out(model.results)
-gibbs.dic[9] <- compute_dic(gibbs.results.list[[9]])
-
-gp=geneticParams(K=2, states=0:1, xi=c(1.5, 1 ), mu=c(-3, -0.5))
-mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
-model.results <- gibbs(mp, gp, data$data)
-gibbs.results.list[[10]]  <- results.out(model.results)
-gibbs.dic[10] <- compute_dic(gibbs.results.list[[10]])
+gibbs.results.list[[10]]  <- results.out(model.results, gp)
+gibbs.dic[10] <- compute_dic(gibbs.results.list[[10]], gp)
+gibbs.dic.alt[10] <- compute_dic.alt(gibbs.results.list[[10]], gp)
+gibbs.bic[10] <- compute_bic(gibbs.results.list[[10]], gp)
 
 index <- which(order(gibbs.dic)==1)
 gibbs.results.select <- gibbs.results.list[[index]]
-gibbs.results.select
+return(list(gibbs.model.best = gibbs.results.select,
+            gibbs.dic.list = gibbs.dic,
+            gibbs.dic.alt.list = gibbs.dic.alt,
+            gibbs.bic.list = gibbs.bic,
+            gibbs.results.all = gibbs.results.list))
 }
 
 setMcmcParams <- function(model, mp){
@@ -1448,7 +1507,7 @@ selectModels <- function(model.list){
   keep
 }
 
-diagnostics <- function(model.list){
+diagnostics <- function(model.list, gp){
   mlist <- mcmcList(model.list)
   neff <- effectiveSize(mlist)
   r <- gelman_rubin(mlist, gp)  
