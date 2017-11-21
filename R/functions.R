@@ -163,11 +163,14 @@ cnProb <- function(current, tbl, p){
   ##
   ## Repeat each y K times so that each y is evaluated for the K different values of theta and sigma
   ##
+  # error thrown here because starting values to far away from parameterised simulation d.y=0 a lot of cells, which causes probs
   d.y <- tbl$log_ratio %>% rep(each=K) %>%
     dnorm(mean=theta, sd=sigma) %>%
     matrix(N, K, byrow=TRUE) %>%
     "*"(p)
+  d.y[d.y==0]<-0.00000001
   cn.denom <- rowSums(d.y, na.rm=TRUE)
+  # this should be redundant but just in case
   cn.denom <- ifelse(cn.denom==0, 0.0000000001, cn.denom)
   cn.prob <- d.y/cn.denom
   # if(any(cn.denom == 0)) stop("zeros in denominator")
