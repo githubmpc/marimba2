@@ -13,12 +13,12 @@
   p <- params$p
   theta <- params$theta
   sigma <- params$sigma
-  c_m <- sample(1:K, size = n, replace = TRUE, prob = p)
-  c_f <- sample(1:K, size = n, replace = TRUE, prob = p)
+  c_mk <- sample(1:K, size = n, replace = TRUE, prob = p)
+  c_fk <- sample(1:K, size = n, replace = TRUE, prob = p)
   c_o <- rep(NA, length = n)
   M <- cn_adjust2(gp)
-  c_m <- c_m + M
-  c_f <- c_f + M
+  c_m <- c_mk + M
+  c_f <- c_fk + M
   for(i in 1:n){
     cn_m <- c_m[i] + 1
     cn_f <- c_f[i] + 1
@@ -27,10 +27,11 @@
     c_o[i] <- sample(1:K, size = 1, prob = p.offspring)
   }
   c_o <- c_o + M
+  c_ok <- c_o - M
   id.index <- formatC(seq_len(n), flag="0", width=3)
-  logr.tbl <- tibble(m=rnorm(n, mean = theta[c_m], sd = sigma[c_m]),
-                     f=rnorm(n, mean = theta[c_f], sd = sigma[c_f]),
-                     o=rnorm(n, mean = theta[c_o], sd = sigma[c_o]),
+  logr.tbl <- tibble(m=rnorm(n, mean = theta[c_mk], sd = sigma[c_mk]),
+                     f=rnorm(n, mean = theta[c_fk], sd = sigma[c_fk]),
+                     o=rnorm(n, mean = theta[c_ok], sd = sigma[c_ok]),
                      id=factor(paste0("trio_", id.index))) %>%
     gather(key="family_member", value="log_ratio", -id) 
   cn.mat <- cbind(c_m, c_f, c_o)
