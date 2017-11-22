@@ -97,10 +97,13 @@ mprob.matrix <-  function(tau=c(0.5, 0.5, 0.5), gp){
                  "40", "41", "42", "43", "44")
   
   mprob.mat <- mprob.subset(mprob.mat, gp)
+  K <- gp$K
+  ST <- gp$states[1]
   mprob.mat 
   
   extdata <- system.file("extdata", package="marimba2")
-  saveRDS(mprob.mat, file.path(extdata, "mendelian_probs2.rds"))
+  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  saveRDS(mprob.mat, file.path(extdata, filename))
 }
 
 mprob.subset <- function(mprob.mat, gp) {
@@ -206,6 +209,7 @@ cnProb <- function(current, tbl, p){
     matrix(N, K, byrow=TRUE) %>%
     "*"(p)
   d.y[d.y==0]<-0.00000001
+  d.y[is.na(d.y)]<-0.00000001
   cn.denom <- rowSums(d.y, na.rm=TRUE)
   # this should be redundant but just in case
   cn.denom <- ifelse(cn.denom==0, 0.0000000001, cn.denom)
@@ -219,7 +223,10 @@ cnProb <- function(current, tbl, p){
 # this function initialises and contains the mendelian transmission probabilities
 .init <- function(data, K, tau, e, gp){
   extdata <- system.file("extdata", package="marimba2")
-  mprob <- readRDS(file.path(extdata, "mendelian_probs2.rds"))
+  K <- gp$K
+  ST <- gp$states[1]
+  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  mprob <- readRDS(file.path(extdata, filename))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
@@ -254,7 +261,9 @@ cnProb <- function(current, tbl, p){
   pi.child <- rdirichlet(1, gp$a)
   e <- gp$error
   extdata <- system.file("extdata", package="marimba2")
-  mprob <- readRDS(file.path(extdata, "mendelian_probs2.rds"))
+  ST <- gp$states[1]
+  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  mprob <- readRDS(file.path(extdata, filename))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
