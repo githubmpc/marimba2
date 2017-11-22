@@ -1,3 +1,6 @@
+# qrsh  -l h_fsize=200G,mem_free=80G,h_vmem=150G
+# qrsh  -l mem_free=20G,h_vmem=30G
+
 options(error = recover)
 
 library(reshape2)
@@ -14,6 +17,7 @@ library(HWEBayes)
 library(coda)
 library(mclust)
 # load_all("marimba")
+# setwd("/dcs01/chaklab/chaklab1/users/mchou/")
 setwd("~/Desktop/Chakravarti_Lab/git")
 load_all("marimba_two")
 
@@ -26,7 +30,7 @@ params <- data.frame(cbind(p, theta, sigma))
 dat2 <- simulate_data(params, N=500, error=0)
 y <- dat2$data$log_ratio
 
-gg_cnp(dat2)
+gg_cnp(dat2$data)
 
 gmodel.test<-gmodel2(dat2$data)
 gmodel.test<-gmodel(dat2$data)
@@ -65,6 +69,8 @@ mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 mp=mcmcParams(burnin=1000, iter=100, thin=1, nstarts=20, max_burnin=3000)
 mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=3, max_burnin=21)
 mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=50, max_burnin=21)
+mp=mcmcParams(burnin=500, iter=1000, thin=1, nstarts=3, max_burnin=2000)
+
 
 # this set of parameters takes 2.2 hours
 mp=mcmcParams(burnin=1000, iter=1000, thin=5, nstarts=5, max_burnin=3000)
@@ -81,28 +87,38 @@ time.taken <- end.time - start.time
 
 # results
 gibbs.select <- selectModels(gibbs.test)
-gibbs.test2 <- lapply(gibbs.test, "[", gibbs.select)
+#gibbs.test2 <- lapply(gibbs.test, "[", gibbs.select)
 gibbs.test2 <- gibbs.test[gibbs.select]
-gibbs.diag <- diagnostics(gibbs.test2)
+gibbs.diag <- diagnostics(gibbs.test2, gp)
 gibbs.unlist <- unlistModels(gibbs.test2)
 
 # results output
 current_summary(gibbs.unlist)
-gibbs.sum <- posterior_summary(gibbs.unlist)
-gibbs.dic <- compute_dic(gibbs.unlist)
+gibbs.sum <- posterior_summary(gibbs.unlist , gp)
+gibbs.dic <- compute_dic(gibbs.unlist, gp)
 gibbs.sum
 gg_truth(dat2)
-gg_model(gibbs.unlist)
-gg_chains(gibbs.unlist, dat2)
-posterior_difference(gibbs.sum, dat2)
+gg_model(gibbs.model)
+gg_chains(gibbs.model, dat2)
+posterior_difference(gibbs.model, dat2)
+
+# multiple_models manual test
+gibbs.out <- results.out(gibbs.test, gp)
+compute_dic(gibbs.out, gp)
+compute_dic.alt(gibbs.out, gp)
+compute_bic(gibbs.out, gp)
 
 # multiple model selection mode
 data <- dat2
 gibbs.model <- multiple_models(data, mp)
+posterior_summary(gibbs.model[[1]] , gibbs.model[[1]]$gp)
+# posterior_summary(gibbs.model[[3]][[4]] , gibbs.model[[1]][[4]]$gp)
+posterior_difference(current_summary(gibbs.model[[1]]), data)
+# posterior_difference(current_summary(gibbs.model[[3]][[4]]) , dat2)
 
 # when debugging
 data <- dat2$data
 
-
+gp1000.raw<-fread("~/Desktop/Chakravarti_Lab/1000G/sv1000gp_FinalReport.txt", header=T)
 
 

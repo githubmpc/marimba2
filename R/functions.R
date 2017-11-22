@@ -131,6 +131,43 @@ mprob.label <- function(gp){
   geno.combo
 }
 
+gMendelian.multi <- function(tau=c(0.5, 0.5, 0.5)){
+  tau1 <- tau[1]
+  tau2 <- tau[2]
+  tau3 <- tau[3]
+  mendelian.probs <- array(dim=c(5, 5, 5))
+  genotypes <- c("CN0", "CN1", "CN2", "CN3", "CN4")
+  dimnames(mendelian.probs) <- list(paste0("O_", genotypes),
+                                    paste0("M_", genotypes),
+                                    paste0("F_", genotypes))
+  mendelian.probs[, 1, 1] <- c(1,0,0,0,0)
+  mendelian.probs[, 1, 2] <- c(tau1, 1 - tau1, 0,0,0)
+  mendelian.probs[, 1, 3] <- c(tau2 / 2, 0.5, (1 - tau2) / 2, 0,0)
+  mendelian.probs[, 1, 4] <- c(0, tau3, 1 - tau3, 0,0)
+  mendelian.probs[, 1, 5] <- c(0,0,1,0,0)
+  mendelian.probs[, 2, 1] <- c(tau1, 1 - tau1, 0,0,0)
+  mendelian.probs[, 2, 2] <- c((tau1^2), 2 * (tau1 * (1 - tau1)), ((1 - tau1)^2), 0,0)
+  mendelian.probs[, 2, 3] <- c((tau1 * tau2) / 2, (tau2 * (1 - tau1) + tau1) / 2, (tau1 * (1-tau2) + (1 - tau1)) / 2, ((1 - tau1) * (1 - tau2)) / 2, 0)
+  mendelian.probs[, 2, 4] <- c(0, tau1 * tau3, tau1 * (1 - tau3) + (1 - tau1) * tau3, (1- tau1) * (1 - tau3), 0)
+  mendelian.probs[, 2, 5] <- c(0, 0, tau1, (1 - tau1), 0)
+  mendelian.probs[, 3, 1] <- c(tau2 / 2, 0.5, (1 - tau2) / 2, 0, 0)
+  mendelian.probs[, 3, 2] <- c((tau1 * tau2) / 2, (tau1 + tau2 * (1 - tau1)) / 2, ((1 - tau1) + (tau1 * (1-tau2)) ) / 2, (1 - tau1) * (1 - tau2) / 2, 0)
+  mendelian.probs[, 3, 3] <- c(tau2^2 / 4, tau2 / 2, (0.5 + tau2 * (1 - tau2)) / 2, (1 - tau2) / 2, (1 - tau2)^2 / 4)
+  mendelian.probs[, 3, 4] <- c(0, tau2 * tau3 / 2, (tau3 + tau2 * (1 - tau3)) / 2, (((1 - tau3) + (1 - tau2) * tau3) / 2), (1 - tau2) * (1 - tau1) /2)
+  mendelian.probs[, 3, 5] <- c(0, 0, tau2 / 2, 0.5, (1 - tau2) / 2)
+  mendelian.probs[, 4, 1] <- c(0, tau3, (1-tau3), 0, 0)
+  mendelian.probs[, 4, 2] <- c(0, tau1 * tau3, tau1 * (1 - tau3) + (1 - tau1) * tau3, (1 - tau1) * (1 - tau3), 0)
+  mendelian.probs[, 4, 3] <- c(0, tau2 * tau3 / 2, (tau3 + tau2 * (1 - tau3)) / 2, ((1 - tau3) + (1 - tau2) * tau3) / 2, (1 - tau2) * (1 - tau3) / 2)
+  mendelian.probs[, 4, 4] <- c(0,0, tau3^2, 2 * tau3 * (1 - tau3), (1 - tau3)^2)
+  mendelian.probs[, 4, 5] <- c(0,0,0, tau3, 1-tau3)
+  mendelian.probs[, 5, 1] <- c(0,0,1,0,0)
+  mendelian.probs[, 5, 2] <- c(0,0, tau1, 1 - tau1, 0)
+  mendelian.probs[, 5, 3] <- c(0,0, tau2 / 2, 0.5, (1 - tau2) / 2)
+  mendelian.probs[, 5, 4] <- c(0,0,0, tau3, 1 - tau3)
+  mendelian.probs[, 5, 5] <- c(0,0,0,0,1)
+  mendelian.probs
+}
+
 gMendelian <- function(tau=c(1, 0.5, 0), err=5e-4){
   tau.one <- tau[1]
   tau.two <- tau[2]
@@ -141,8 +178,8 @@ gMendelian <- function(tau=c(1, 0.5, 0), err=5e-4){
   mendelian.probs <- array(dim=c(3, 3, 3))
   genotypes <- c("BB", "AB", "AA")
   dimnames(mendelian.probs) <- list(paste0("O_", genotypes),
-                                    paste0("F_", genotypes),
-                                    paste0("M_", genotypes))
+                                    paste0("M_", genotypes),
+                                    paste0("F_", genotypes))
   mendelian.probs[, 1, 1] <- c((1 - tau3)^2, 2 * tau3 * (1 - tau3), tau3^2)
   mendelian.probs[, 2, 1] <- c((1 - tau2) * (1 - tau3), tau2 * (1 - tau3) + (1 - tau2) * tau3, tau2 * tau3)
   mendelian.probs[, 3, 1] <- c((1 - tau1) * (1 - tau3), tau1 * (1 - tau3) + tau3 * (1 - tau1), tau1 * tau3)
@@ -922,6 +959,17 @@ statistics_1000g <- function(region){
 gg_cnp <- function(dat){
   response.df <- melt(dat$y)
   cn.df <- melt(dat$cn)
+  df <- data.frame(logr=response.df$value,
+                   cn=cn.df$value)
+  df$cn <- as.factor(df$cn)
+  p <- ggplot(df, aes(logr, ..count.., fill = cn)) + 
+    geom_density(alpha = .5) + xlab("LRR")
+  p
+}
+
+gg_cnp2 <- function(dat){
+  response.df <- melt(dat$data$log_ratio)
+  cn.df <- melt(dat$data$copy_number)
   df <- data.frame(logr=response.df$value,
                    cn=cn.df$value)
   df$cn <- as.factor(df$cn)
