@@ -17,8 +17,8 @@ library(HWEBayes)
 library(coda)
 library(mclust)
 # load_all("marimba")
-# setwd("/dcs01/chaklab/chaklab1/users/mchou/")
-setwd("~/Desktop/Chakravarti_Lab/git")
+ setwd("/dcs01/chaklab/chaklab1/users/mchou/")
+#setwd("~/Desktop/Chakravarti_Lab/git")
 load_all("marimba_two")
 
 
