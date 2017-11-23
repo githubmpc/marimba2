@@ -1346,7 +1346,7 @@ multiple_models <- function(data, mp){
  gibbs.dic.alt <- rep(NA, 10)
  gibbs.bic <- rep(NA, 10)
   
- gp=geneticParams(K=5, states=0:4, xi=c(2, 1.5, 1, 1.5, 2), mu=c(-3, -1, 0.1, 1.5, 3.5))
+ gp=geneticParams(K=5, states=0:4, xi=c(0.3, 0.3, 0.3, 0.3, 0.3), mu=c(-3.5, -1.2, 0.3, 1.7, 4))
  mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
   model.results <- gibbs(mp, gp, data$data)
  gibbs.results.list[[1]]  <- results.out(model.results, gp)[[1]]
@@ -1355,7 +1355,7 @@ gibbs.dic[1] <- compute_dic(gibbs.results.list[[1]], gp)
 gibbs.dic.alt[1] <- compute_dic.alt(gibbs.results.list[[1]], gp)
 gibbs.bic[1] <- compute_bic(gibbs.results.list[[1]], gp)
 
-gp=geneticParams(K=4, states=0:3, xi=c(2, 1.5, 1, 1.5), mu=c(-3, -1, 0.1, 1.5))
+gp=geneticParams(K=4, states=0:3, xi=c(0.3, 0.3, 0.3, 0.3), mu=c(-3.5, -1.2, 0.3, 1.7))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[2]]  <- results.out(model.results, gp)[[1]]
@@ -1364,7 +1364,7 @@ gibbs.dic[2] <- compute_dic(gibbs.results.list[[2]], gp)
 gibbs.dic.alt[2] <- compute_dic.alt(gibbs.results.list[[2]], gp)
 gibbs.bic[2] <- compute_bic(gibbs.results.list[[2]], gp)
 
-gp=geneticParams(K=4, states=1:4, xi=c(1.5, 1, 1.5, 2), mu=c(-1, 0.1, 1.5, 3.5))
+gp=geneticParams(K=4, states=1:4, xi=c(0.3, 0.3, 0.3, 0.3), mu=c(-1.2, 0.3, 1.7, 4))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[3]]  <- results.out(model.results, gp)[[1]]
@@ -1373,7 +1373,7 @@ gibbs.dic[3] <- compute_dic(gibbs.results.list[[3]], gp)
 gibbs.dic.alt[3] <- compute_dic.alt(gibbs.results.list[[3]], gp)
 gibbs.bic[3] <- compute_bic(gibbs.results.list[[3]], gp)
 
-gp=geneticParams(K=3, states=0:2, xi=c(2, 1.5, 1), mu=c(-3, -1, 1.5))
+gp=geneticParams(K=3, states=0:2, xi=c(0.3, 0.3, 0.3), mu=c(-3.5, -1.2, 0.3))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[4]]  <- results.out(model.results, gp)[[1]]
@@ -1382,7 +1382,7 @@ gibbs.dic[4] <- compute_dic(gibbs.results.list[[4]], gp)
 gibbs.dic.alt[4] <- compute_dic.alt(gibbs.results.list[[4]], gp)
 gibbs.bic[4] <- compute_bic(gibbs.results.list[[4]], gp)
 
-gp=geneticParams(K=3, states=1:3, xi=c(1.5, 1, 1.5), mu=c(-1, 0.1, 1.5))
+gp=geneticParams(K=3, states=1:3, xi=c(0.3, 0.3, 0.3), mu=c(-1.2, 0.3, 1.7))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[5]]  <- results.out(model.results, gp)[[1]]
@@ -1391,7 +1391,7 @@ gibbs.dic[5] <- compute_dic(gibbs.results.list[[5]], gp)
 gibbs.dic.alt[5] <- compute_dic.alt(gibbs.results.list[[5]], gp)
 gibbs.bic[5] <- compute_bic(gibbs.results.list[[5]], gp)
 
-gp=geneticParams(K=3, states=2:4, xi=c(1, 1.5, 2), mu=c(0.1, 1.5, 3.5))
+gp=geneticParams(K=3, states=2:4, xi=c(0.3, 0.3, 0.3), mu=c(0.3, 1.7, 4))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[6]]  <- results.out(model.results, gp)[[1]]
@@ -1400,7 +1400,7 @@ gibbs.dic[6] <- compute_dic(gibbs.results.list[[6]], gp)
 gibbs.dic.alt[6] <- compute_dic.alt(gibbs.results.list[[6]], gp)
 gibbs.bic[6] <- compute_bic(gibbs.results.list[[6]], gp)
 
-gp=geneticParams(K=2, states=0:1, xi=c(2, 1.5), mu=c(-3, -1))
+gp=geneticParams(K=2, states=0:1, xi=c(0.3, 0.3), mu=c(-3.5, -1.2))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[7]]  <- results.out(model.results, gp)[[1]]
@@ -1409,7 +1409,7 @@ gibbs.dic[7] <- compute_dic(gibbs.results.list[[7]], gp)
 gibbs.dic.alt[7] <- compute_dic.alt(gibbs.results.list[[7]], gp)
 gibbs.bic[7] <- compute_bic(gibbs.results.list[[7]], gp)
 
-gp=geneticParams(K=2, states=1:2, xi=c(1.5, 1), mu=c(-1, 0.1))
+gp=geneticParams(K=2, states=1:2, xi=c(0.3, 0.3), mu=c(-1.2, 0.3))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[8]]  <- results.out(model.results, gp)[[1]]
@@ -1418,7 +1418,7 @@ gibbs.dic[8] <- compute_dic(gibbs.results.list[[8]], gp)
 gibbs.dic.alt[8] <- compute_dic.alt(gibbs.results.list[[8]], gp)
 gibbs.bic[8] <- compute_bic(gibbs.results.list[[8]], gp)
 
-gp=geneticParams(K=2, states=2:3, xi=c(1, 1.5), mu=c(0.1, 1.5))
+gp=geneticParams(K=2, states=2:3, xi=c(0.3, 0.3), mu=c(0.3, 1.7))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[9]]  <- results.out(model.results, gp)[[1]]
@@ -1427,7 +1427,7 @@ gibbs.dic[9] <- compute_dic(gibbs.results.list[[9]], gp)
 gibbs.dic.alt[9] <- compute_dic.alt(gibbs.results.list[[9]], gp)
 gibbs.bic[9] <- compute_bic(gibbs.results.list[[9]], gp)
 
-gp=geneticParams(K=2, states=3:4, xi=c(1.5, 2), mu=c(1.5, 3.5))
+gp=geneticParams(K=2, states=3:4, xi=c(0.3, 0.3), mu=c(1.7, 4))
 mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
 model.results <- gibbs(mp, gp, data$data)
 gibbs.results.list[[10]]  <- results.out(model.results, gp)[[1]]
@@ -1443,24 +1443,39 @@ gibbs.neff.mean <- rapply(gibbs.neff.list,mean)
 gibbs.mpsrf.list <- lapply(gibbs.diag.list, function(x) sapply(x$r$mpsrf, mean))
 gibbs.mpsrf.mean <- rapply(gibbs.mpsrf.list,mean)
 index1 <- index[gibbs.neff.mean > 0.8 * mp$iter * mp$nstarts]
-index2 <- index[gibbs.mpsrf.mean < 5]
+index2 <- index[gibbs.mpsrf.mean < 1.5]
 index <- intersect(index1, index2)
-gibbs.bic2 <- gibbs.bic[index]
-index <- which(order(gibbs.bic2)==1)
-gibbs.results.select <- gibbs.results.list[[index]]
 
 # results and other useful info output
-gibbs.results.summary <- vector("list", 5)
-gibbs.results.summary[[1]] <- gibbs.results.select
-gibbs.results.summary[[2]] <- list(dic.list = gibbs.dic, 
-                                   dic.check.list = gibbs.dic.alt,
-                                   bic.list = gibbs.bic)
-gibbs.results.summary[[3]] <- gibbs.results.list
-gibbs.results.summary[[4]] <- gibbs.diag.list
-gibbs.results.summary[[5]] <- list(index = index, 
-                                   neff.means = gibbs.neff.mean,
-                                   mpsrf.means = gibbs.mpsrf.mean)
-gibbs.results.summary
+if(length(index)>0){
+  gibbs.bic2 <- gibbs.bic[index]
+  index3 <- which(order(gibbs.bic2)==1)
+  gibbs.results.select <- gibbs.results.list[[index3]]
+  gibbs.results.summary <- vector("list", 5)
+  gibbs.results.summary[[1]] <- gibbs.results.select
+  gibbs.results.summary[[2]] <- list(dic.list = gibbs.dic, 
+                                     dic.check.list = gibbs.dic.alt,
+                                     bic.list = gibbs.bic)
+  gibbs.results.summary[[3]] <- gibbs.results.list
+  gibbs.results.summary[[4]] <- gibbs.diag.list
+  gibbs.results.summary[[5]] <- list(index = index, 
+                                     neff.means = gibbs.neff.mean,
+                                     mpsrf.means = gibbs.mpsrf.mean)
+  gibbs.results.summary
+} else {
+  msg <- "all results filtered"
+  gibbs.results.summary <- vector("list", 5)
+  gibbs.results.summary[[1]] <- list(msg)
+  gibbs.results.summary[[2]] <- list(dic.list = gibbs.dic, 
+                                     dic.check.list = gibbs.dic.alt,
+                                     bic.list = gibbs.bic)
+  gibbs.results.summary[[3]] <- gibbs.results.list
+  gibbs.results.summary[[4]] <- gibbs.diag.list
+  gibbs.results.summary[[5]] <- list(index = index, 
+                                     neff.means = gibbs.neff.mean,
+                                     mpsrf.means = gibbs.mpsrf.mean)
+}
+
 }
 
 setMcmcParams <- function(model, mp){
