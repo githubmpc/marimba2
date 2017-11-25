@@ -473,11 +473,11 @@ balance_cn <- function(stats, current, gp, model){
   tbl
 }
 
-update_theta <- function(ymns, sigma, ns, params){
+update_theta <- function(ymns, yvars, ns, params){
   mu.0 <- params$mu[1]
   xi <- params$xi[1] ## prior variance
   ## let phi denote inverse variance
-  data.precision <- ns * 1/sigma^2
+  data.precision <- ns * 1/yvars^2
   prior.precision <- 1/xi
   post.prec <- prior.precision + data.precision
   mu.n <- (mu.0 * prior.precision + ymns * data.precision) / post.prec
@@ -603,7 +603,7 @@ gmodel_oneiter <- function(model){
   ns <- stats$n
   current$theta <- update_theta(params=gp,
                                 ymns=ymeans,
-                                sigma=sigma,
+                                yvars=yvars,
                                 ns=ns)
   ##
   ## update sigma
@@ -1533,10 +1533,12 @@ label_switch <- function(model){
     model$current$theta <- th[ix]
     model$current$sigma <- model$current$sigma[ix]
     model$current$p <- model$current$p[ix]
+    model$current$pi.child <- model$current$pi.child[ix]
     ch <- model$chains
     ch$theta <- ch$theta[, ix]
     ch$sigma <- ch$sigma[, ix]
     ch$p <- ch$p[, ix]
+    ch$pi.child <- ch$pi.child[, ix]
     ch$z <- ch$z[, ix]
     model$chains <- ch
   }
