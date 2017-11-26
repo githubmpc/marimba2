@@ -477,7 +477,7 @@ update_theta <- function(ymns, yvars, ns, params){
   mu.0 <- params$mu[1]
   xi <- params$xi[1] ## prior variance
   ## let phi denote inverse variance
-  data.precision <- ns * 1/yvars^2
+  data.precision <- ns * 1/yvars
   prior.precision <- 1/xi
   post.prec <- prior.precision + data.precision
   mu.n <- (mu.0 * prior.precision + ymns * data.precision) / post.prec
