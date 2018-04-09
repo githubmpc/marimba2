@@ -9,6 +9,30 @@ test_that("simulate_data_multi", {
   params <- data.frame(cbind(p, theta, sigma))
   gp<-geneticParams(K=5, states=0:4, xi=c(0.2, 0.2, 0.2, 0.2, 0.2), 
                     mu=c(-3.5, -1.2, 0.3, 1.7, 4))
+  dat2 <- simulate_data_multi(params, N=500, error=0, gp)
+  
+  mprob <- mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
+  mp=mcmcParams(burnin=20, iter=10, thin=1, nstarts=3, max_burnin=21)
+  gibbs.test <- gibbs(mp, gp, dat2$data, mprob)
+  
+  gibbs.select <- selectModels(gibbs.test)
+  #gibbs.test2 <- lapply(gibbs.test, "[", gibbs.select)
+  gibbs.test2 <- gibbs.test[gibbs.select]
+  gibbs.diag <- diagnostics(gibbs.test2, gp)
+  gibbs.unlist <- unlistModels(gibbs.test2)
+  
+})
+
+
+test_that("simulate_data_multi", {
+  set.seed(98765)
+  ##mendelian.probs <- mendelianProb(epsilon=0)
+  p <- c(0.09, 0.24, 0.34, 0.24, 0.09)
+  theta <- c(-3.5,-1.2, 0.3, 1.7, 4)
+  sigma <- c(0.2, 0.2, 0.2, 0.2, 0.2)
+  params <- data.frame(cbind(p, theta, sigma))
+  gp<-geneticParams(K=5, states=0:4, xi=c(0.2, 0.2, 0.2, 0.2, 0.2), 
+                    mu=c(-3.5, -1.2, 0.3, 1.7, 4))
   #mendelian.probs <- gMendelian.multi()
   expect_equal(sum(params[, "p"]), 1)
   

@@ -101,9 +101,9 @@ mprob.matrix <-  function(tau=c(0.5, 0.5, 0.5), gp){
   ST <- gp$states[1]
   mprob.mat 
   
-  extdata <- system.file("extdata", package="marimba2")
-  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
-  saveRDS(mprob.mat, file.path(extdata, filename))
+  #extdata <- system.file("extdata", package="marimba2")
+  #filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  #saveRDS(mprob.mat, file.path(extdata, filename))
 }
 
 mprob.subset <- function(mprob.mat, gp) {
@@ -221,12 +221,12 @@ cnProb <- function(current, tbl, p){
 }
 
 # this function initialises and contains the mendelian transmission probabilities
-.init <- function(data, K, tau, e, gp){
-  extdata <- system.file("extdata", package="marimba2")
+.init <- function(data, K, tau, e, gp, mprob){
+  #extdata <- system.file("extdata", package="marimba2")
   K <- gp$K
   ST <- gp$states[1]
-  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
-  mprob <- readRDS(file.path(extdata, filename))
+  #filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  #mprob <- readRDS(file.path(extdata, filename))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
@@ -252,7 +252,7 @@ cnProb <- function(current, tbl, p){
   current
 }
 
-.init2 <- function(gp){
+.init2 <- function(gp, mprob){
   K <- gp$K
   theta <- sort(rnorm(K, gp$mu, gp$xi))
   logsigma <- rnorm(K, log(0.3), 1)
@@ -260,10 +260,10 @@ cnProb <- function(current, tbl, p){
   p <- rdirichlet(1, gp$a)
   pi.child <- rdirichlet(1, gp$a)
   e <- gp$error
-  extdata <- system.file("extdata", package="marimba2")
+  # extdata <- system.file("extdata", package="marimba2")
   ST <- gp$states[1]
-  filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
-  mprob <- readRDS(file.path(extdata, filename))
+  # filename <- paste0("mendelian_probs2_",K,"_",ST,".rds")
+  # mprob <- readRDS(file.path(extdata, filename))
   if(e > 0){
     mprob2 <- mprob %>% select(starts_with("p("))
     mprob2 <- (mprob2 + e)/(rowSums(mprob2 + e))
@@ -284,8 +284,8 @@ cnProb <- function(current, tbl, p){
 
 gmodel2 <- function(data,
                     mp=mcmcParams(),
-                    gp=geneticParams()){
-  current <- .init2(gp)
+                    gp=geneticParams(), mprob){
+  current <- .init2(gp, mprob)
   chains <- initialize_chains(states=gp$states,
                               N=nrow(data),
                               K=gp$K,
@@ -298,8 +298,8 @@ gmodel2 <- function(data,
 
 gmodel <- function(data,
                    mp=mcmcParams(),
-                   gp=geneticParams()){
-  current <- .init(data, gp$K, gp$tau, gp$error, gp)
+                   gp=geneticParams(), mprob){
+  current <- .init(data, gp$K, gp$tau, gp$error, gp, mprob)
   chains <- initialize_chains(states=gp$states,
                               N=nrow(data),
                               K=gp$K,
@@ -1585,7 +1585,7 @@ gelman_rubin <- function(mcmc_list, gp){
   r
 }
 
-gibbs <- function(mp, gp, dat){
+gibbs <- function(mp, gp, dat, mprob){
   chains <- initialize_chains(states=gp$states,
                               N=nrow(dat),
                               K=gp$K,
@@ -1593,7 +1593,7 @@ gibbs <- function(mp, gp, dat){
   max_burnin <- mp$max_burnin
   while(mp$burnin < max_burnin){
     message("burnin: ", mp$burnin)
-    start.list <- replicate(mp$nstarts, .init2(gp), simplify=FALSE)
+    start.list <- replicate(mp$nstarts, .init2(gp, mprob), simplify=FALSE)
     model.list <- map(start.list, gibbs_genetic2, chains, dat, gp, mp)
     keep <- selectModels(model.list)
     model.list2 <- model.list[ keep ]
