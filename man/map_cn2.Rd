@@ -4,7 +4,7 @@
 \alias{map_cn2}
 \title{Return maximum a posterior copy number from a model}
 \usage{
-map_cn2(model)
+map_cn2(model, M)
 }
 \arguments{
 \item{model}{a fitted model}
