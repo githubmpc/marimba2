@@ -17,8 +17,8 @@ library(HWEBayes)
 library(coda)
 library(mclust)
 # load_all("marimba")
- setwd("/dcs01/chaklab/chaklab1/users/mchou/")
-#setwd("~/Desktop/Chakravarti_Lab/git")
+#setwd("/dcs01/chaklab/chaklab1/users/mchou/")
+setwd("~/Desktop/Chakravarti_Lab/git")
 load_all("marimba_two")
 
 
@@ -30,7 +30,7 @@ params <- data.frame(cbind(p, theta, sigma))
 dat2 <- simulate_data(params, N=500, error=0)
 y <- dat2$data$log_ratio
 
-gg_cnp(dat2$data)
+gg_cnp2(dat2)
 
 gmodel.test<-gmodel2(dat2$data)
 gmodel.test<-gmodel(dat2$data)
@@ -77,6 +77,8 @@ mp=mcmcParams(burnin=1000, iter=1000, thin=5, nstarts=5, max_burnin=3000)
 
 
 mp=mcmcParams(burnin=1500, iter=1000, thin=10, nstarts=10, max_burnin=3500)
+
+mp=mcmcParams(burnin=1500, iter=3000, thin=10, nstarts=5, max_burnin=6001)
 
 
 

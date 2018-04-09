@@ -40,7 +40,7 @@
     mutate(id=factor(paste0("trio_", id.index))) %>%
     gather(key="family_member", value="copy_number", -id)
   tbl <- left_join(logr.tbl, cn.tbl, by=c("id", "family_member")) %>%
-    mutate(family_member=factor(family_member, levels=c("f", "m", "o"))) %>%
+    mutate(family_member=factor(family_member, levels=c("m", "f", "o"))) %>%
     arrange(id, family_member)
   tbl
 }
@@ -49,9 +49,11 @@ simulate_data_multi <- function(params, N, error=0, GP){
   gp <- GP
   mendelian.probs <- gMendelian.multi()
   tbl <- .simulate_data_multi(params, N, mendelian.probs, GP)
+  
   ## standardize
-  tbl <- tbl %>%
-    mutate(log_ratio=(log_ratio-median(log_ratio))/sd(log_ratio))
+  #tbl <- tbl %>%
+   # mutate(log_ratio=(log_ratio-median(log_ratio))/sd(log_ratio))
+  
   M <- cn_adjust2(gp)
   z <- tbl$copy_number - M
   ##
@@ -93,7 +95,7 @@ simulate_data_multi <- function(params, N, error=0, GP){
     mutate(id=factor(paste0("trio_", id.index))) %>%
     gather(key="family_member", value="copy_number", -id)
   tbl <- left_join(logr.tbl, cn.tbl, by=c("id", "family_member")) %>%
-    mutate(family_member=factor(family_member, levels=c("f", "m", "o"))) %>%
+    mutate(family_member=factor(family_member, levels=c("m", "f", "o"))) %>%
     arrange(id, family_member)
   tbl
 }
@@ -101,10 +103,12 @@ simulate_data_multi <- function(params, N, error=0, GP){
 simulate_data <- function(params, N, error=0){
   mendelian.probs <- gMendelian()
   tbl <- .simulate_data(params, N, mendelian.probs)
+  
   ## standardize
-  tbl <- tbl %>%
-    mutate(log_ratio=(log_ratio-median(log_ratio))/sd(log_ratio))
-  z <- tbl$copy_number + 1
+  #tbl <- tbl %>%
+   # mutate(log_ratio=(log_ratio-median(log_ratio))/sd(log_ratio))
+  #z <- tbl$copy_number + 1
+  
   ##
   ## update parameters to be same as empirical values
   ##

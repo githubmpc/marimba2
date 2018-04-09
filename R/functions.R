@@ -280,6 +280,7 @@ cnProb <- function(current, tbl, p){
 # different between gmodel and gmodel2 is in current - first includes data, second is parameters only
 # variable model in function calls usually refers to gmodel
 # different is .init vs .init2 - gmodel calls mclust and gmodel2 uses gp$a
+# gmodel and gmodel2 appears to be only used for testing not in actual running code
 
 gmodel2 <- function(data,
                     mp=mcmcParams(),
@@ -487,6 +488,13 @@ update_theta <- function(ymns, yvars, ns, params){
 
 component_stats <- function(tbl){
   tbl %>% group_by(copy_number) %>%
+    summarize(mean=mean(log_ratio),
+              sd=sd(log_ratio),
+              n=n())
+}
+
+component_stats2 <- function(tbl){
+  tbl %>% group_by(copy_number, family_member) %>%
     summarize(mean=mean(log_ratio),
               sd=sd(log_ratio),
               n=n())
@@ -1346,7 +1354,7 @@ multiple_models <- function(data, mp){
  gibbs.dic.alt <- rep(NA, 10)
  gibbs.bic <- rep(NA, 10)
   
- gp=geneticParams(K=5, states=0:4, xi=c(0.3, 0.3, 0.3, 0.3, 0.3), mu=c(-3.5, -1.2, 0.3, 1.7, 4))
+ gp=geneticParams(K=5, states=0:4, xi=c(0.04, 0.04, 0.04, 0.04, 0.04), mu=c(-3.5, -1.2, 0.3, 1.7, 4))
  mprob.matrix(tau=c(0.5, 0.5, 0.5), gp=gp)
   model.results <- gibbs(mp, gp, data$data)
  gibbs.results.list[[1]]  <- results.out(model.results, gp)[[1]]
@@ -1438,10 +1446,10 @@ gibbs.bic[10] <- compute_bic(gibbs.results.list[[10]], gp)
 
 # model selection by neff, mpsrf and BIC
 index <- 1:10
-gibbs.neff.list <- lapply(gibbs.diag.list, function(x) sapply(x$neff, mean))
-gibbs.neff.mean <- rapply(gibbs.neff.list,mean)
-gibbs.mpsrf.list <- lapply(gibbs.diag.list, function(x) sapply(x$r$mpsrf, mean))
-gibbs.mpsrf.mean <- rapply(gibbs.mpsrf.list,mean)
+gibbs.neff.list <- lapply(gibbs.diag.list, function(x) sapply(x$neff, median))
+gibbs.neff.mean <- rapply(gibbs.neff.list,median)
+gibbs.mpsrf.list <- lapply(gibbs.diag.list, function(x) sapply(x$r$mpsrf, median))
+gibbs.mpsrf.mean <- rapply(gibbs.mpsrf.list,median)
 index1 <- index[gibbs.neff.mean > 0.8 * mp$iter * mp$nstarts]
 index2 <- index[gibbs.mpsrf.mean < 1.5]
 index <- intersect(index1, index2)
@@ -1459,8 +1467,8 @@ if(length(index)>0){
   gibbs.results.summary[[3]] <- gibbs.results.list
   gibbs.results.summary[[4]] <- gibbs.diag.list
   gibbs.results.summary[[5]] <- list(index = index, 
-                                     neff.means = gibbs.neff.mean,
-                                     mpsrf.means = gibbs.mpsrf.mean)
+                                     neff.median = gibbs.neff.mean,
+                                     mpsrf.median = gibbs.mpsrf.mean)
   gibbs.results.summary
 } else {
   msg <- "all results filtered"
